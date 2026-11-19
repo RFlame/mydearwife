@@ -9,6 +9,7 @@ import mimetypes
 import os
 from pathlib import Path
 import sys
+import time
 
 
 REQUIRED_FILES = ("index.html", "index.js", "index.wasm", "index.pck")
@@ -50,6 +51,26 @@ def list_remote_keys(client, bucket):
             raise RuntimeError("COS returned a truncated listing without NextMarker")
 
 
+def upload_with_retry(client, bucket, key, path):
+    """当前 Web 文件远小于 COS 单 PUT 的 5GB 上限，不依赖 UploadPart 权限。"""
+    for attempt in range(1, 4):
+        try:
+            client.put_object_from_local_file(
+                Bucket=bucket,
+                Key=key,
+                LocalFilePath=str(path),
+                EnableMD5=True,
+                CacheControl="no-cache",
+                ContentType=content_type(key),
+            )
+            return
+        except Exception as exc:
+            if attempt == 3:
+                raise
+            print("upload %s attempt %d failed: %s; retrying" % (key, attempt, exc), flush=True)
+            time.sleep(attempt * 2)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", default="build/web", help="Godot Web 导出目录")
@@ -88,20 +109,12 @@ def main():
         SecretId=os.environ["TENCENT_SECRET_ID"],
         SecretKey=os.environ["TENCENT_SECRET_KEY"],
         Scheme="https",
+        Timeout=300,
     )
     client = CosS3Client(config)
     for key, path in sorted(files.items()):
         print("uploading %s" % key, flush=True)
-        client.upload_file(
-            Bucket=args.bucket,
-            Key=key,
-            LocalFilePath=str(path),
-            PartSize=10,
-            MAXThread=4,
-            EnableMD5=True,
-            CacheControl="no-cache",
-            ContentType=content_type(key),
-        )
+        upload_with_retry(client, args.bucket, key, path)
 
     # 只有全部文件上传成功才清理旧键；本脚本只能用于专用游戏桶。
     stale = sorted(list_remote_keys(client, args.bucket) - set(files))
