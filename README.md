@@ -74,20 +74,19 @@ python3 -I tools/web_smoke.py http://localhost:8765/ docs/images
 python3 -I tools/web_counter_smoke.py http://localhost:8765/ docs/images
 ```
 
-## 腾讯云 COS 自动部署
+## 腾讯云 EdgeOne Pages 自动部署
 
 工作流位于 `.github/workflows/deploy-web.yml`，使用 Godot 官方 4.7.2 Linux 发布包和对应导出模板，不依赖第三方 Godot Action。
 
-推送 `main` 或手动触发后，Actions 会重新导入资源、导出 Web、检查 HTML/JS/WASM/PCK，并通过腾讯云官方 Python SDK 发布到 COS 静态网站；最后检查四个线上文件是否可以公开访问。工作流不再部署到 GitHub Pages。
+推送 `main` 或手动触发后，Actions 会重新导入资源、导出 Web、检查 HTML/JS/WASM/PCK，并通过固定版本的腾讯云官方 `edgeone` CLI 发布到 EdgeOne Pages；随后提取线上地址，检查四个关键文件及首页真实 GET。工作流不再部署到 GitHub Pages，也不再更新 COS。
 
 首次发布前需要：
 
-1. 创建一个**公有读、私有写的专用 COS 存储桶**，开启静态网站并将首页设为 `index.html`。
-2. 创建仅有该桶数据读写权限的 CAM 子用户 API 密钥。
-3. 在 **Settings → Secrets and variables → Actions** 中配置 `TENCENT_SECRET_ID`、`TENCENT_SECRET_KEY`、`TENCENT_COS_BUCKET` 和 `TENCENT_COS_REGION`；不要把密钥提交到仓库或发到聊天中。
-4. 将本工作流推送到 `main`，之后每次推送都会自动重新导出并发布。
+1. 在腾讯云 EdgeOne Pages 控制台的目标工作空间创建 API Token。
+2. 在 **Settings → Secrets and variables → Actions** 中配置 `EDGEONE_API_TOKEN`；不要把 Token 提交到仓库或发到聊天中。
+3. 将本工作流推送到 `main`。首次部署会自动创建 `mydearwife` 直接上传项目，之后每次推送都会自动重新导出并发布。
 
-完整控制台步骤、默认网址格式和安全注意事项见 [`docs/tencent_cos_deploy.md`](docs/tencent_cos_deploy.md)。本地无需提交 `.godot/` 或 `build/`，CI 每次从源码生成独立的 `build/web` 发布产物。
+完整控制台步骤、项目配置和安全注意事项见 [`docs/edgeone_pages_deploy.md`](docs/edgeone_pages_deploy.md)。本地无需提交 `.godot/` 或 `build/`，CI 每次从源码生成独立的 `build/web` 发布产物。
 
 `tools/web_counter_smoke.py` 通过 `?smoke=1` 下的只读状态快照和 Chrome DevTools Protocol 真实鼠标事件验证当前受影响流程：固定 90° 篮口撒落、四区位于上方、桌面单击轻跳、真实拖入椭圆区、点击退回、完整同款自动称重、POS 切换手动模式、集齐后保持等待，以及屏幕任意位置双击触发多区 FIFO 称重。随后恢复自动模式，真实拖完第 1 关并进入第 2 关，核验 3 客 × 6 件共 18 件。它不直接调用游戏的 `place_in_zone / return_zone_item / request_zone_settlement`，也不会修改游戏状态；控制台出现 error/exception 时返回非零。本轮未运行完整 `web_smoke.py`。
 

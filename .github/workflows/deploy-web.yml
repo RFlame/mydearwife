@@ -1,4 +1,4 @@
-name: Deploy Godot Web to Tencent COS
+name: Deploy Godot Web to EdgeOne Pages
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: tencent-cos-production
+  group: edgeone-pages-production
   cancel-in-progress: true
 
 jobs:
@@ -18,18 +18,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
-      name: tencent-cos
-      url: ${{ steps.verify.outputs.site_url }}
+      name: edgeone-pages
+      url: ${{ steps.publish.outputs.site_url }}
     env:
       GODOT_VERSION: "4.7.2"
+      EDGEONE_PROJECT_NAME: "mydearwife"
     steps:
       - name: Check out project
         uses: actions/checkout@v4
 
-      - name: Set up Python for COS SDK
-        uses: actions/setup-python@v5
+      - name: Set up Node.js for EdgeOne CLI
+        uses: actions/setup-node@v4
         with:
-          python-version: "3.12"
+          node-version: "22"
 
       - name: Install official Godot and export templates
         shell: bash
@@ -68,56 +69,58 @@ jobs:
           test -s build/web/index.wasm
           test -s build/web/index.pck
 
-      - name: Install Tencent COS SDK
-        run: |
-          python -m pip install --disable-pip-version-check cos-python-sdk-v5==1.9.45
-
-      - name: Upload Web release to Tencent COS
+      - name: Deploy Web release to EdgeOne Pages
+        id: publish
         shell: bash
         env:
-          TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
-          TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
-          TENCENT_COS_BUCKET: ${{ secrets.TENCENT_COS_BUCKET }}
-          TENCENT_COS_REGION: ${{ secrets.TENCENT_COS_REGION }}
+          EDGEONE_API_TOKEN: ${{ secrets.EDGEONE_API_TOKEN }}
         run: |
           set -euo pipefail
-          for name in TENCENT_SECRET_ID TENCENT_SECRET_KEY TENCENT_COS_BUCKET TENCENT_COS_REGION; do
-            if [[ -z "${!name}" ]]; then
-              echo "::error::Missing GitHub Actions Secret: $name"
-              exit 1
-            fi
-          done
-          python tools/tencent_cos_deploy.py \
-            --source build/web \
-            --bucket "$TENCENT_COS_BUCKET" \
-            --region "$TENCENT_COS_REGION"
+          if [[ -z "$EDGEONE_API_TOKEN" ]]; then
+            echo "::error::Missing GitHub Actions Secret: EDGEONE_API_TOKEN"
+            exit 1
+          fi
+          deploy_log="$RUNNER_TEMP/edgeone-deploy.log"
+          npx --yes edgeone@1.7.3 makers deploy build/web \
+            --name "$EDGEONE_PROJECT_NAME" \
+            --env production \
+            --area global \
+            --token "$EDGEONE_API_TOKEN" \
+            --skip-ai-gateway-sync \
+            --json 2>&1 | tee "$deploy_log"
+          python3 tools/edgeone_pages_result.py "$deploy_log" --github-output "$GITHUB_OUTPUT"
 
-      - name: Verify public Tencent COS deployment
-        id: verify
+      - name: Verify public EdgeOne Pages deployment
         shell: bash
         env:
-          TENCENT_COS_BUCKET: ${{ secrets.TENCENT_COS_BUCKET }}
-          TENCENT_COS_REGION: ${{ secrets.TENCENT_COS_REGION }}
+          EDGEONE_SITE_URL: ${{ steps.publish.outputs.site_url }}
         run: |
           set -euo pipefail
-          site_url="https://${TENCENT_COS_BUCKET}.cos-website.${TENCENT_COS_REGION}.myqcloud.com"
-          echo "site_url=$site_url/" >> "$GITHUB_OUTPUT"
+          if [[ -z "$EDGEONE_SITE_URL" ]]; then
+            echo "::error::EdgeOne Pages deployment did not return a public URL"
+            exit 1
+          fi
+          site_url="${EDGEONE_SITE_URL%/}"
           for file in index.html index.js index.wasm index.pck; do
             if ! curl --fail --silent --show-error --location --head \
               --retry 6 --retry-all-errors --retry-delay 5 --max-time 45 \
               "$site_url/$file" > /dev/null; then
-              echo "::error::Public file check failed: $site_url/$file. Confirm static website is enabled, index.html is configured, and the bucket allows public read."
+              echo "::error::Public file check failed: $site_url/$file"
               exit 1
             fi
           done
-          home_headers="$RUNNER_TEMP/cos-home-headers.txt"
+          home_headers="$RUNNER_TEMP/edgeone-home-headers.txt"
           if ! curl --fail --silent --show-error --location \
             --retry 6 --retry-all-errors --retry-delay 5 --max-time 45 \
             --dump-header "$home_headers" --output /dev/null "$site_url/"; then
             echo "::error::Public homepage GET failed: $site_url/"
             exit 1
           fi
-          if grep -Eiq '^(Content-Disposition:[[:space:]]*attachment|x-cos-force-download:[[:space:]]*true)' "$home_headers"; then
-            echo "::error::COS serves the homepage as an attachment instead of displaying it. Check the HTML Content-Disposition metadata; if the default COS endpoint still forces downloads, bind a custom domain."
+          if ! grep -Eiq '^Content-Type:[[:space:]]*text/html' "$home_headers"; then
+            echo "::error::Homepage is not served as text/html: $site_url/"
+            exit 1
+          fi
+          if grep -Eiq '^Content-Disposition:[[:space:]]*attachment' "$home_headers"; then
+            echo "::error::Homepage is served as an attachment instead of being displayed: $site_url/"
             exit 1
           fi
