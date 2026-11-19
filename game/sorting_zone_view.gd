@@ -1,12 +1,11 @@
 class_name SortingZoneView
-extends Panel
-## 桌面四角的半透明集货垫：拖入高亮、集齐回弹、排队与称重状态。
+extends Control
+## 四角的小型椭圆集货垫：无边框，拖入高亮、集齐回弹、排队与称重状态。
 
 var zone_index := 0
 var accent := UIKit.RED
 var title_label: Label
 var detail_label: Label
-var footer_label: Label
 var _hover := false
 var _queued := false
 var _active := false
@@ -15,23 +14,22 @@ var _pulse: Tween = null
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	resized.connect(func(): pivot_offset = size * 0.5)
-	title_label = UIKit.make_label("%d  集货区" % (zone_index + 1), 22, accent)
-	title_label.position = Vector2(12, 8)
-	title_label.size = Vector2(196, 30)
+	resized.connect(func():
+		pivot_offset = size * 0.5
+		queue_redraw())
+	title_label = UIKit.make_label("%d  集货区" % (zone_index + 1), 18, accent)
+	title_label.position = Vector2(16, 12)
+	title_label.size = Vector2(size.x - 32, 26)
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(title_label)
-	detail_label = UIKit.make_label("拖入同款", 19, UIKit.BROWN)
-	detail_label.position = Vector2(12, 42)
-	detail_label.size = Vector2(196, 32)
+	detail_label = UIKit.make_label("拖入同款", 15, UIKit.BROWN)
+	detail_label.position = Vector2(8, size.y - 36)
+	detail_label.size = Vector2(size.x - 16, 24)
+	detail_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	detail_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(detail_label)
-	footer_label = UIKit.make_label("集齐自动称重", 16, Color(UIKit.BROWN, 0.76))
-	footer_label.position = Vector2(12, 202)
-	footer_label.size = Vector2(196, 24)
-	footer_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(footer_label)
-	_apply_style()
+	queue_redraw()
 
 
 func set_drag_hover(on: bool) -> void:
@@ -60,14 +58,27 @@ func pulse_ready() -> void:
 
 
 func _apply_style() -> void:
-	var border := accent
-	var fill := Color(UIKit.PAPER, 0.30)
+	queue_redraw()
+
+
+func _draw() -> void:
+	var center := size * 0.5
+	var radius := size * 0.5
+	var fill := Color(accent, 0.13)
 	if _queued:
-		border = UIKit.GOLD
 		fill = Color(UIKit.GOLD, 0.25)
 	if _active:
-		border = UIKit.GREEN
 		fill = Color(UIKit.GREEN, 0.28)
 	if _hover:
 		fill = Color(accent, 0.30)
-	add_theme_stylebox_override("panel", UIKit.stylebox(fill, border, 4 if _hover or _active else 3, 20))
+	# 柔和投影与半透明填充都没有描边，不占中央分拣通道。
+	draw_colored_polygon(_ellipse_points(center + Vector2(0, 3), radius + Vector2(3, 2)), Color(0.25, 0.14, 0.07, 0.07))
+	draw_colored_polygon(_ellipse_points(center, radius), fill)
+
+
+func _ellipse_points(center: Vector2, radius: Vector2) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	for index in 64:
+		var angle := TAU * float(index) / 64.0
+		points.append(center + Vector2(cos(angle) * radius.x, sin(angle) * radius.y))
+	return points

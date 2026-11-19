@@ -90,7 +90,7 @@ func _run() -> void:
 		guard += 1
 		await get_tree().create_timer(0.05).timeout
 	_expect(gs._basket_phase == "done" and not gs._switching_customer and not is_instance_valid(gs.basket_view), "empty basket disappears before input unlocks")
-	_expect(_table_parent_count(gs) == 100 and _flying_count(gs) == 0 and st.basket.remaining() == 100, "all 100 snacks remain on the table after pouring")
+	_expect(_table_parent_count(gs) == 6 and _flying_count(gs) == 0 and st.basket.remaining() == 6, "all 6 snacks remain on the table after pouring")
 	var scales_restored := true
 	for uid in gs.snack_nodes:
 		var node: SnackView = gs.snack_nodes[uid]
@@ -119,13 +119,13 @@ func _run() -> void:
 	var action_before: int = gs.cashier_view.action_seq
 	var tap_before: int = gs.snack_nodes[int(pick_item["uid"])].tap_seq
 	await _click(pick_point)
-	_expect(st.tray.is_empty() and st.basket.remaining() == 100 and st.zones.is_clear(), "real table click only bounces without picking or zoning")
+	_expect(st.tray.is_empty() and st.basket.remaining() == 6 and st.zones.is_clear(), "real table click only bounces without picking or zoning")
 	_expect(gs.snack_nodes[int(pick_item["uid"])].tap_seq == tap_before + 1, "real table click triggers the local hop")
 	_expect(gs.cashier_view.action_seq == action_before and gs._checkout_btn.disabled, "table bounce does not trigger cashier sorting or manual checkout")
 
 	action_before = gs.cashier_view.action_seq
 	await _drag(pick_point, gs.table_view.to_global(GameScreen.ZONE_RECTS[0].get_center()))
-	_expect(st.zones.sections[0].size() == 1 and st.basket.remaining() == 99, "real drag places exactly one snack into a corner zone")
+	_expect(st.zones.sections[0].size() == 1 and st.basket.remaining() == 5, "real drag places exactly one snack into a corner zone")
 	_expect(gs.cashier_view.action_seq > action_before, "real zoning triggers cashier arm action")
 	var saw_sort_motion := false
 	for sample in 20:

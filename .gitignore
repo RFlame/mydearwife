@@ -1,0 +1,8 @@
+# Godot editor state, imported resources and local export cache
+.godot/
+
+# Generated exports; CI recreates the Web release for GitHub Pages
+build/
+
+# macOS metadata
+.DS_Store

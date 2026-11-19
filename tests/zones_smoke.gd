@@ -28,6 +28,14 @@ func _run() -> void:
 			zones_disjoint = zones_disjoint and not rect.intersects(GameScreen.ZONE_RECTS[j])
 	_expect(zones_inside, "all four zones stay inside the unchanged table safe area")
 	_expect(zones_disjoint, "corner drop regions do not overlap")
+	var ellipse_hit_ok := true
+	var corner_miss_ok := true
+	for rect in GameScreen.ZONE_RECTS:
+		ellipse_hit_ok = ellipse_hit_ok and gs._zone_at_table_point(rect.get_center()) >= 0
+		for corner in [rect.position, Vector2(rect.end.x, rect.position.y), rect.position + Vector2(0, rect.size.y), rect.end]:
+			corner_miss_ok = corner_miss_ok and not GameScreen.zone_contains_point(0, corner) and not GameScreen.zone_contains_point(1, corner) and not GameScreen.zone_contains_point(2, corner) and not GameScreen.zone_contains_point(3, corner)
+	_expect(ellipse_hit_ok, "each elliptical zone accepts its center")
+	_expect(corner_miss_ok, "bounding-box corners outside every ellipse are not drop targets")
 	_expect(gs._checkout_btn.disabled, "manual POS checkout is disabled")
 	await _shot("zones_ready")
 
@@ -61,6 +69,7 @@ func _run() -> void:
 		_finish(st)
 		return
 	var zoned_uid := int(st.zones.sections[0][0]["uid"])
+	_expect(GameScreen.zone_contains_point(0, gs.table_view.to_local(gs.snack_nodes[zoned_uid].global_position)), "zoned snack lands inside the central ellipse rather than its bounding corner")
 	await _click(gs.snack_nodes[zoned_uid].global_position)
 	await get_tree().create_timer(0.32).timeout
 	_expect(st.zones.sections[0].is_empty() and st.basket.remaining() == 4, "real zone click returns the snack to the table")

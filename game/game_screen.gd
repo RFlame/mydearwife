@@ -17,15 +17,15 @@ const BASKET_POUR_TIME := 1.20
 const BASKET_FIRST_SPILL := 0.12
 const DRAG_THRESHOLD := 9.0
 const ZONE_RECTS := [
-	Rect2(34, 70, 220, 238), Rect2(346, 70, 220, 238),
-	Rect2(34, 552, 220, 238), Rect2(346, 552, 220, 238),
+	Rect2(44, 78, 184, 176), Rect2(372, 78, 184, 176),
+	Rect2(44, 606, 184, 176), Rect2(372, 606, 184, 176),
 ]
 const ZONE_COLORS := [UIKit.RED, UIKit.BLUE, UIKit.GREEN, Color("B98242")]
 const ZONE_OFFSETS := [
-	Vector2(0, 0), Vector2(-46, -38), Vector2(42, -34),
-	Vector2(-48, 28), Vector2(44, 32), Vector2(0, 66),
-	Vector2(0, -70), Vector2(-58, 0), Vector2(58, 0),
-	Vector2(-28, 70), Vector2(30, -68), Vector2(0, 18),
+	Vector2(0, 0), Vector2(-26, -18), Vector2(26, -18),
+	Vector2(-28, 18), Vector2(28, 18), Vector2(0, -30),
+	Vector2(0, 30), Vector2(-38, 0), Vector2(38, 0),
+	Vector2(-16, 0), Vector2(16, 0), Vector2(0, 14),
 ]
 const ZONE_FLIGHT_TIME := 0.26
 const BATCH_FLIGHT_TIME := 0.34
@@ -157,9 +157,19 @@ func _zone_hit_test(pointer: Vector2) -> int:
 	return best_uid
 
 
+static func zone_contains_point(zone_index: int, point: Vector2) -> bool:
+	if zone_index < 0 or zone_index >= ZONE_RECTS.size():
+		return false
+	var rect: Rect2 = ZONE_RECTS[zone_index]
+	var delta := point - rect.get_center()
+	var radius := rect.size * 0.5
+	var normalized := Vector2(delta.x / radius.x, delta.y / radius.y)
+	return normalized.length_squared() <= 1.0
+
+
 func _zone_at_table_point(point: Vector2) -> int:
 	for zone_index in ZoneModel.ZONE_COUNT:
-		if ZONE_RECTS[zone_index].has_point(point):
+		if zone_contains_point(zone_index, point):
 			return zone_index
 	return -1
 
@@ -405,14 +415,6 @@ func _build_cashier() -> void:
 
 
 func _build_basket_area() -> void:
-	var title := UIKit.make_label("四角集货 · 集齐同款", 26, UIKit.BROWN)
-	title.position = Vector2(28, 350)
-	title.size = Vector2(410, 38)
-	add_child(title)
-	var hint := UIKit.make_label("拖入区域 · 点区内零食退回", 18, UIKit.BROWN)
-	hint.position = Vector2(28, 388)
-	hint.size = Vector2(410, 28)
-	add_child(hint)
 	table_view = Node2D.new()
 	table_view.name = "SortingTable"
 	table_view.position = TABLE_HOME

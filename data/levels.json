@@ -1,7 +1,7 @@
 {
   "levels": [
     {"id": 1,  "customers": 2, "items": 4, "snack_kinds": 2, "overlap": 0.10, "patience": 0,  "customer": "normal",  "pool": ["chips", "candy", "soda", "biscuit"]},
-    {"id": 2,  "customers": 3, "items": 100, "snack_kinds": 16, "overlap": 0.15, "patience": 0,  "customer": "normal",  "pool_categories": ["puffed", "sweets", "bakery", "jelly_pudding", "nuts", "savory", "dried_fruit", "drinks"], "category_diverse": true, "scatter_width": 520, "scatter_height": 620},
+    {"id": 2,  "customers": 3, "items": 6, "snack_kinds": 3, "overlap": 0.18, "patience": 0,  "customer": "normal",  "pool": ["chips", "candy", "soda", "biscuit"]},
     {"id": 3,  "customers": 2, "items": 6, "snack_kinds": 3, "overlap": 0.20, "patience": 0,  "customer": "normal",  "pool": ["chips", "candy", "soda", "biscuit"]},
     {"id": 4,  "customers": 3, "items": 5, "snack_kinds": 3, "overlap": 0.25, "patience": 0,  "customer": "normal",  "pool": ["chips", "candy", "soda", "biscuit"]},
     {"id": 5,  "customers": 3, "items": 7, "snack_kinds": 3, "overlap": 0.30, "patience": 0,  "customer": "rich",    "pool": ["chips", "candy", "soda", "biscuit"]},
