@@ -56,8 +56,8 @@ def redact(message):
     return message
 
 
-def annotation(message):
-    message = redact(message)[:600]
+def annotation(message, limit=600):
+    message = redact(message)[:limit]
     return message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
 
@@ -138,11 +138,54 @@ def backend_failure(log_path):
     return "status query failed: " + " | ".join(errors)
 
 
+def backend_build_log(log_path):
+    """读取官方构建日志的脱敏末尾；签名 URL 仅用于请求，绝不返回或打印。"""
+    token = os.environ.get("EDGEONE_API_TOKEN", "")
+    log = ANSI_ESCAPE.sub("", Path(log_path).read_text(encoding="utf-8"))
+    project = re.search(r"Using Project ID:\s*([A-Za-z0-9_-]+)", log)
+    deployment = re.search(r"Created deployment with Deployment ID:\s*([A-Za-z0-9_-]+)", log)
+    if not token or not project or not deployment:
+        return None
+    request_data = {
+        "Action": "DescribePagesDeploymentLog",
+        "ProjectId": project.group(1),
+        "DeploymentId": deployment.group(1),
+    }
+    for endpoint in API_ENDPOINTS:
+        payload, query_error = api_post(endpoint, request_data, token)
+        if query_error or payload.get("Code") != 0:
+            continue
+        data = payload.get("Data") if isinstance(payload.get("Data"), dict) else {}
+        response = data.get("Response")
+        if not isinstance(response, dict):
+            response = payload.get("Response") if isinstance(payload.get("Response"), dict) else {}
+        log_url = response.get("LogUrl", "")
+        if not isinstance(log_url, str):
+            continue
+        parts = urlsplit(log_url)
+        if parts.scheme != "https" or not parts.netloc or any(char in log_url for char in "\r\n"):
+            continue
+        try:
+            with urlopen(Request(log_url, method="GET"), timeout=20) as log_response:
+                body = log_response.read(2000001)
+        except (HTTPError, URLError, TimeoutError, OSError):
+            continue
+        if len(body) > 2000000:
+            return "build log exceeded the 2 MB diagnostic limit"
+        lines = [line.strip() for line in body.decode("utf-8", errors="replace").splitlines()
+                 if line.strip()]
+        return redact("\n".join(lines[-16:])[-2400:]) or "build log is empty"
+    return None
+
+
 def diagnose(log_path, query_api=False):
     if query_api:
         detail = backend_failure(log_path)
         if detail:
             print("::error::EdgeOne backend deployment detail: %s" % annotation(detail))
+        build_log = backend_build_log(log_path)
+        if build_log:
+            print("::error::EdgeOne backend build log tail: %s" % annotation(build_log, limit=2400))
     result = deployment_result(log_path)
     if result and result.get("status") == "error":
         message = str(result.get("error") or "unknown CLI error")

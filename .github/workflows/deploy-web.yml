@@ -69,6 +69,30 @@ jobs:
           test -s build/web/index.wasm
           test -s build/web/index.pck
 
+      - name: Package Web release as ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          from zipfile import ZIP_DEFLATED, ZipFile
+
+          root = Path("build/web")
+          archive_path = Path(os.environ["RUNNER_TEMP"]) / "mydearwife-web.zip"
+          with ZipFile(archive_path, "w", compression=ZIP_DEFLATED, compresslevel=9) as archive:
+              for path in sorted(root.rglob("*")):
+                  if path.is_file():
+                      archive.write(path, path.relative_to(root).as_posix())
+          with ZipFile(archive_path) as archive:
+              if archive.testzip() is not None:
+                  raise RuntimeError("Web ZIP integrity check failed")
+              required = {"index.html", "index.js", "index.wasm", "index.pck"}
+              if not required.issubset(archive.namelist()):
+                  raise RuntimeError("Web ZIP is missing required root files")
+          print("Web ZIP size: %s bytes" % archive_path.stat().st_size)
+          PY
+
       - name: Deploy Web release to EdgeOne Pages
         id: publish
         shell: bash
@@ -82,7 +106,7 @@ jobs:
           fi
           deploy_log="$RUNNER_TEMP/edgeone-deploy.log"
           set +e
-          npx --yes edgeone@1.7.3 makers deploy build/web \
+          npx --yes edgeone@1.7.3 makers deploy "$RUNNER_TEMP/mydearwife-web.zip" \
             --name "$EDGEONE_PROJECT_NAME" \
             --env production \
             --area global \

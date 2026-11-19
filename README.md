@@ -78,7 +78,7 @@ python3 -I tools/web_counter_smoke.py http://localhost:8765/ docs/images
 
 工作流位于 `.github/workflows/deploy-web.yml`，使用 Godot 官方 4.7.2 Linux 发布包和对应导出模板，不依赖第三方 Godot Action。
 
-推送 `main` 或手动触发后，Actions 会重新导入资源、导出 Web、检查 HTML/JS/WASM/PCK，并通过固定版本的腾讯云官方 `edgeone` CLI 发布到 EdgeOne Pages；随后提取线上地址，检查四个关键文件及首页真实 GET。工作流不再部署到 GitHub Pages，也不再更新 COS。
+推送 `main` 或手动触发后，Actions 会重新导入资源、导出 Web、检查 HTML/JS/WASM/PCK，将产物按根目录相对路径打成 ZIP，再通过固定版本的腾讯云官方 `edgeone` CLI 发布到 EdgeOne Pages；随后提取线上地址，检查四个关键文件及首页真实 GET。工作流不再部署到 GitHub Pages，也不再更新 COS。
 
 首次发布前需要：
 

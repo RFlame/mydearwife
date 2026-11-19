@@ -22,12 +22,13 @@ Token 绑定工作空间，部署会进入该工作空间。不要把 Token 发�
 - 如果工作空间里已经有同名项目，它必须是**直接上传**类型；否则请改用另一个项目名，避免把 Git 集成项目改成不同的发布方式。
 - 创建时使用 `global` 加速区域。项目创建后，CLI 的 `--area` 不会改变既有项目区域。
 - 发布目录只有 CI 新生成的 `build/web`，不会上传源码、`.godot/` 或本地存档。
+- 部署前将 Web 文件按相对根路径打成 ZIP，并通过官方 CLI 的 Zip 部署路径上传，由 Pages 解包；`index.html/index.js/index.wasm/index.pck` 都位于 ZIP 根目录。上传前的 CLI 分片与这里的 ZIP 打包是两个不同层次。
 
 ## 3. 发布与验收
 
 - 推送 `main` 会自动发布；也可以在 **Actions → Deploy Godot Web to EdgeOne Pages → Run workflow** 手动触发。
 - CLI 的最后一行 JSON 提供部署 URL，`tools/edgeone_pages_result.py` 只接受最终成功的 HTTPS 地址，并把它写入部署环境链接。
-- 如果后端部署失败，脚本会根据 CLI 日志中的 `ProjectId` 和 `DeploymentId` 调用同一个官方只读 `DescribePagesDeployments` API，将这次部署的 `Status/Code/Message` 脱敏后写入 Action 注解；不会打印 API Token、请求头、临时 COS 密钥或完整响应。
+- 如果后端部署失败，脚本会根据 CLI 日志中的 `ProjectId` 和 `DeploymentId` 调用官方只读 `DescribePagesDeployments` 和 `DescribePagesDeploymentLog` API，将这次部署的 `Status/Code/Message` 及构建日志末尾脱敏后写入 Action 注解；不会打印 API Token、请求头、临时 COS 密钥、日志签名 URL 或完整 API 响应。
 - Action 对四个关键文件执行 HTTPS HEAD 检查，再对首页执行真实 GET，要求 `text/html` 且不能以附件形式下载。HEAD 200 不代表游戏已经可玩，发布后的最终验收还应运行 `tools/web_counter_smoke.py`，用真实 Chrome 检查游戏启动和受影响操作。
 - 部署命令使用 `--skip-ai-gateway-sync`，本游戏没有 AI Gateway 或云函数依赖。
 
