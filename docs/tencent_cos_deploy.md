@@ -2,7 +2,7 @@
 
 工作流：`.github/workflows/deploy-web.yml`。
 
-每次推送 `main`，GitHub Actions 都会从源码安装 Godot 4.7.2 和导出模板，生成 Web 产物，检查 HTML/JS/WASM/PCK，再用腾讯云官方 Python SDK 上传到 COS。上传后会对四个线上文件执行 HTTPS HEAD 检查，任一文件不可公开访问都会让部署失败。
+每次推送 `main`，GitHub Actions 都会从源码安装 Godot 4.7.2 和导出模板，生成 Web 产物，检查 HTML/JS/WASM/PCK，再用腾讯云官方 Python SDK 上传到 COS。上传后会对四个线上文件执行 HTTPS HEAD 检查，并对首页执行真实 GET；文件不可公开访问或首页被当成附件下载都会让部署失败。
 
 ## 1. 创建专用 COS 存储桶
 
@@ -59,6 +59,6 @@ https://mydearwife-1250000000.cos-website.ap-guangzhou.myqcloud.com/
 - 将工作流合入 `main` 会自动发布；也可以在 **Actions → Deploy Godot Web to Tencent COS → Run workflow** 手动触发。
 - `Export and publish Web` 任务中的部署环境链接就是 COS 静态网站地址。
 - 工作流上传时给文件设置 `Cache-Control: no-cache`，避免同名 JS/WASM/PCK 更新后继续命中旧缓存。
-- 部署脚本按扩展名设置 Content-Type，其中 HTML 为 `text/html; charset=utf-8`、JavaScript 为 `text/javascript`、WASM 为 `application/wasm`，避免浏览器因错误 MIME 拒绝加载。
+- 部署脚本按扩展名设置 Content-Type，其中 HTML 为 `text/html; charset=utf-8`、JavaScript 为 `text/javascript`、WASM 为 `application/wasm`，避免浏览器因错误 MIME 拒绝加载。HTML 还会显式设置 `Content-Disposition: inline`；如果 COS 默认域名仍强制下载首页，发布会明确失败，需要绑定自定义域名，不能把 HEAD 200 当成页面可玩。
 - 当前工作流不配置 CDN、自定义域名或 CDN 缓存刷新。后续接入 CDN 时，需要另加缓存刷新步骤；中国大陆自定义域名还需满足备案要求。
 - 原来的 GitHub Pages 工作流已被本工作流替换，不再由该项目自动更新。已经存在的 Pages 站点是否关闭，可在 GitHub Pages 设置中另行决定。

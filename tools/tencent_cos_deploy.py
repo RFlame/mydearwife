@@ -60,6 +60,13 @@ def upload_with_retry(client, bucket, key, path):
 
     for attempt in range(1, 4):
         try:
+            headers = {
+                "CacheControl": "no-cache",
+                "ContentType": content_type(key),
+            }
+            if key.endswith(".html"):
+                # 静态网站首页必须内联显示，不能让浏览器把导航当成附件下载。
+                headers["ContentDisposition"] = "inline"
             client.upload_file(
                 Bucket=bucket,
                 Key=key,
@@ -68,8 +75,7 @@ def upload_with_retry(client, bucket, key, path):
                 MAXThread=8,
                 EnableMD5=True,
                 progress_callback=report_progress,
-                CacheControl="no-cache",
-                ContentType=content_type(key),
+                **headers,
             )
             return
         except Exception as exc:

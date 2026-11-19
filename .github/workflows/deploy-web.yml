@@ -101,9 +101,23 @@ jobs:
         run: |
           set -euo pipefail
           site_url="https://${TENCENT_COS_BUCKET}.cos-website.${TENCENT_COS_REGION}.myqcloud.com"
-          for file in index.html index.js index.wasm index.pck; do
-            curl --fail --silent --show-error --location --head \
-              --retry 6 --retry-all-errors --retry-delay 5 --max-time 45 \
-              "$site_url/$file" > /dev/null
-          done
           echo "site_url=$site_url/" >> "$GITHUB_OUTPUT"
+          for file in index.html index.js index.wasm index.pck; do
+            if ! curl --fail --silent --show-error --location --head \
+              --retry 6 --retry-all-errors --retry-delay 5 --max-time 45 \
+              "$site_url/$file" > /dev/null; then
+              echo "::error::Public file check failed: $site_url/$file. Confirm static website is enabled, index.html is configured, and the bucket allows public read."
+              exit 1
+            fi
+          done
+          home_headers="$RUNNER_TEMP/cos-home-headers.txt"
+          if ! curl --fail --silent --show-error --location \
+            --retry 6 --retry-all-errors --retry-delay 5 --max-time 45 \
+            --dump-header "$home_headers" --output /dev/null "$site_url/"; then
+            echo "::error::Public homepage GET failed: $site_url/"
+            exit 1
+          fi
+          if grep -Eiq '^(Content-Disposition:[[:space:]]*attachment|x-cos-force-download:[[:space:]]*true)' "$home_headers"; then
+            echo "::error::COS serves the homepage as an attachment instead of displaying it. Check the HTML Content-Disposition metadata; if the default COS endpoint still forces downloads, bind a custom domain."
+            exit 1
+          fi

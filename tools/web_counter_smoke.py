@@ -99,7 +99,10 @@ async def main() -> int:
             client = web.CDP(ws)
             await client.call("Runtime.enable")
             await client.call("Page.enable")
-            await client.call("Page.navigate", {"url": url})
+            navigation = await client.call("Page.navigate", {"url": url})
+            if navigation.get("errorText"):
+                raise AssertionError("page navigation failed: %s (isDownload=%s)" % (
+                    navigation.get("errorText"), navigation.get("isDownload", False)))
             print("loading", url)
             await web.wait_snapshot(client, lambda s: s.get("page") == "home", 30)
             await client.click(360, 398)
