@@ -27,6 +27,7 @@ Token 绑定工作空间，部署会进入该工作空间。不要把 Token 发�
 
 - 推送 `main` 会自动发布；也可以在 **Actions → Deploy Godot Web to EdgeOne Pages → Run workflow** 手动触发。
 - CLI 的最后一行 JSON 提供部署 URL，`tools/edgeone_pages_result.py` 只接受最终成功的 HTTPS 地址，并把它写入部署环境链接。
+- 如果后端部署失败，脚本会根据 CLI 日志中的 `ProjectId` 和 `DeploymentId` 调用同一个官方只读 `DescribePagesDeployments` API，将这次部署的 `Status/Code/Message` 脱敏后写入 Action 注解；不会打印 API Token、请求头、临时 COS 密钥或完整响应。
 - Action 对四个关键文件执行 HTTPS HEAD 检查，再对首页执行真实 GET，要求 `text/html` 且不能以附件形式下载。HEAD 200 不代表游戏已经可玩，发布后的最终验收还应运行 `tools/web_counter_smoke.py`，用真实 Chrome 检查游戏启动和受影响操作。
 - 部署命令使用 `--skip-ai-gateway-sync`，本游戏没有 AI Gateway 或云函数依赖。
 

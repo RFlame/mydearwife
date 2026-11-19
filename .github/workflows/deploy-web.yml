@@ -92,7 +92,7 @@ jobs:
           deploy_status=${PIPESTATUS[0]}
           set -e
           if [[ $deploy_status -ne 0 ]]; then
-            python3 tools/edgeone_pages_result.py "$deploy_log" --diagnose
+            python3 tools/edgeone_pages_result.py "$deploy_log" --diagnose --query-api
             exit "$deploy_status"
           fi
           python3 tools/edgeone_pages_result.py "$deploy_log" --github-output "$GITHUB_OUTPUT"
