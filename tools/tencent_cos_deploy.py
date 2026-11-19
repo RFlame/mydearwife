@@ -52,14 +52,22 @@ def list_remote_keys(client, bucket):
 
 
 def upload_with_retry(client, bucket, key, path):
-    """当前 Web 文件远小于 COS 单 PUT 的 5GB 上限，不依赖 UploadPart 权限。"""
+    """用 1MB 分片缩短跨境请求；不超过 1MB 的文件仍由 SDK 自动单 PUT。"""
+    def report_progress(consumed, total):
+        percent = consumed * 100.0 / max(total, 1)
+        print("%s %.0f%% (%.1f/%.1f MiB)" % (
+            key, percent, consumed / 1048576.0, total / 1048576.0), flush=True)
+
     for attempt in range(1, 4):
         try:
-            client.put_object_from_local_file(
+            client.upload_file(
                 Bucket=bucket,
                 Key=key,
                 LocalFilePath=str(path),
+                PartSize=1,
+                MAXThread=8,
                 EnableMD5=True,
+                progress_callback=report_progress,
                 CacheControl="no-cache",
                 ContentType=content_type(key),
             )
@@ -109,7 +117,7 @@ def main():
         SecretId=os.environ["TENCENT_SECRET_ID"],
         SecretKey=os.environ["TENCENT_SECRET_KEY"],
         Scheme="https",
-        Timeout=300,
+        Timeout=60,
     )
     client = CosS3Client(config)
     for key, path in sorted(files.items()):
