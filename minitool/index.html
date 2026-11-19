@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5e6c8">
+  <title>零食叮叮咚</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="js/data.js"></script>
+  <script defer src="js/model.js"></script>
+  <script defer src="js/game.js"></script>
+  <script defer src="js/platform.js"></script>
+  <script defer src="js/audio.js"></script>
+  <script defer src="js/renderer.js"></script>
+  <script defer src="js/app.js"></script>
+</head>
+<body>
+  <main id="app" class="app-shell">
+    <header class="shop-header">
+      <div>
+        <h1>零食叮叮咚</h1>
+        <p>把同款零食分到四个集货区，称重、贴价签、装袋结账。</p>
+      </div>
+      <span class="shop-stamp" aria-hidden="true">叮咚</span>
+    </header>
+
+    <section id="stage" class="stage" aria-label="零食收银工作台">
+      <canvas id="game-canvas" width="720" height="1280" aria-label="拖动零食到同款集货区；区内点击可退回">
+        你的浏览器无法显示游戏画布，请重新打开小工具或升级客户端。
+      </canvas>
+      <div id="boot-panel" class="panel boot-panel">
+        <p class="eyebrow">复古国潮小卖部</p>
+        <h2 id="boot-title">柜台准备中</h2>
+        <p id="boot-message">正在整理购物篮与电子秤。若一直停留在此页，请重新打开本小工具。</p>
+        <button id="boot-retry" type="button" disabled>正在准备…</button>
+        <noscript><p class="error-text">脚本未运行，无法开始分拣。请启用脚本后重新打开。</p></noscript>
+      </div>
+
+      <div id="home-panel" class="panel home-panel" hidden>
+        <div class="home-heading">
+          <div>
+            <p class="eyebrow">今日营业</p>
+            <h2>选关开张</h2>
+          </div>
+          <div class="save-summary"><span id="coin-count">0 金币</span><span id="star-count">0 星</span></div>
+        </div>
+        <label for="level-select">营业关卡</label>
+        <select id="level-select" aria-label="选择关卡"></select>
+        <div class="level-meta" id="level-meta"></div>
+        <label for="preset-select">分拣节奏</label>
+        <select id="preset-select">
+          <option value="relax">轻松 · 更长耐心与提示</option>
+          <option value="standard">标准 · 推荐</option>
+          <option value="challenge">挑战 · 更短连击窗口</option>
+        </select>
+        <button id="start-button" class="primary-button" type="button">开始营业</button>
+        <div class="home-actions">
+          <button id="upgrades-button" type="button">设备升级</button>
+          <button id="snacks-button" type="button">零食图鉴</button>
+          <button id="customers-button" type="button">顾客图鉴</button>
+        </div>
+        <div class="settings-row">
+          <button id="sound-button" type="button" aria-pressed="true">音效：开</button>
+          <button id="vibrate-button" type="button" aria-pressed="true">振动：开</button>
+        </div>
+        <p id="storage-status" class="storage-status"></p>
+        <p class="how-to">拖动露出零食到椭圆区；同款必须全部同区。点击区内零食可退回。手动模式双击画面结算，等待中的区域按先后串行称重。</p>
+      </div>
+
+      <div id="dialog-panel" class="panel dialog-panel" hidden role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+        <p class="eyebrow" id="dialog-eyebrow">零食叮叮咚</p>
+        <h2 id="dialog-title">暂停营业</h2>
+        <div id="dialog-body"></div>
+        <div id="dialog-actions" class="dialog-actions"></div>
+      </div>
+
+      <div id="collection-panel" class="panel collection-panel" hidden>
+        <div class="collection-heading"><h2 id="collection-title">图鉴</h2><button id="collection-close" type="button">关闭</button></div>
+        <div id="collection-content" class="collection-content"></div>
+      </div>
+
+      <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    </section>
+
+    <footer class="page-footer">离线 Canvas 2D 小工具版 · 20 关 · 40 款原创零食 · 12 位顾客</footer>
+  </main>
+</body>
+</html>

@@ -1,0 +1,146 @@
+:root {
+  --cream: #f5e6c8;
+  --paper: #fff7e7;
+  --ink: #4a3525;
+  --red: #c94f3d;
+  --red-dark: #a83a2c;
+  --green: #5e7d5b;
+  --blue: #527c89;
+  --gold: #d59a3c;
+  color: var(--ink);
+  background: #d9b97e;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+}
+
+* { box-sizing: border-box; }
+html { min-height: 100%; background: #d9b97e; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 0;
+  padding: var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) var(--safe-area-inset-right, env(safe-area-inset-right, 0px)) var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)) var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  background-color: #d9b97e;
+  background-image: linear-gradient(135deg, rgba(255,255,255,.16) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.16) 50%, rgba(255,255,255,.16) 75%, transparent 75%);
+  background-size: 24px 24px;
+  overscroll-behavior: none;
+}
+button, select { font: inherit; }
+button, select, canvas { -webkit-tap-highlight-color: transparent; }
+button {
+  min-height: 44px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  padding: 9px 12px;
+  color: var(--ink);
+  background: var(--paper);
+  box-shadow: 0 3px 0 var(--ink);
+  cursor: pointer;
+}
+button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+button:disabled { opacity: .55; cursor: default; transform: none; }
+button:focus-visible, select:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+.app-shell { width: 100%; max-width: 540px; margin: 0 auto; padding: 12px 12px 18px; }
+.shop-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.shop-header h1 { margin: 0; color: var(--red-dark); font-size: 30px; line-height: 1.15; letter-spacing: 2px; }
+.shop-header p { max-width: 390px; margin: 5px 0 0; font-size: 13px; line-height: 1.45; }
+.shop-stamp {
+  flex: 0 0 auto;
+  margin-left: 8px;
+  padding: 8px 6px;
+  border: 3px double var(--red-dark);
+  border-radius: 50%;
+  color: var(--red-dark);
+  font-weight: 800;
+  transform: rotate(8deg);
+}
+.stage {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border: 4px solid var(--ink);
+  border-radius: 18px;
+  background: #8eab86;
+  box-shadow: 0 8px 0 rgba(74,53,37,.28);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#game-canvas { display: block; width: 100%; height: auto; background: #f0d6a5; touch-action: none; }
+.panel {
+  position: absolute;
+  z-index: 5;
+  left: 5%;
+  top: 5%;
+  width: 90%;
+  max-height: 90%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 3px solid var(--ink);
+  border-radius: 18px;
+  padding: 20px;
+  background: rgba(255,247,231,.97);
+  box-shadow: 0 8px 0 rgba(74,53,37,.3);
+  touch-action: pan-y;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.boot-panel { top: 25%; text-align: center; }
+.boot-panel h2, .home-panel h2, .dialog-panel h2, .collection-panel h2 { margin: 4px 0 12px; color: var(--red-dark); }
+.boot-panel p { line-height: 1.65; }
+.eyebrow { margin: 0; color: var(--green); font-size: 12px; font-weight: 800; letter-spacing: 2px; }
+.error-text, .storage-status { color: var(--red-dark); }
+.home-panel { top: 3%; max-height: 94%; padding: 18px; }
+.home-heading { display: flex; justify-content: space-between; align-items: flex-start; }
+.save-summary { text-align: right; font-size: 12px; font-weight: 700; }
+.save-summary span { display: block; margin-bottom: 5px; }
+.home-panel label { display: block; margin: 10px 0 5px; font-size: 13px; font-weight: 700; }
+select { width: 100%; min-height: 44px; border: 2px solid var(--ink); border-radius: 10px; padding: 7px; color: var(--ink); background: #fffdf5; }
+.level-meta { min-height: 36px; padding: 7px 2px 0; font-size: 12px; line-height: 1.45; }
+.primary-button { width: 100%; margin-top: 14px; color: #fff7e7; background: var(--red); font-size: 19px; font-weight: 800; }
+.home-actions { display: flex; flex-wrap: wrap; margin: 10px -4px 0; }
+.home-actions button { flex: 1 1 30%; margin: 4px; padding-left: 5px; padding-right: 5px; font-size: 13px; }
+.settings-row { display: flex; margin: 4px -4px; }
+.settings-row button { flex: 1; margin: 4px; box-shadow: none; font-size: 13px; }
+.storage-status { min-height: 18px; margin: 8px 0 0; font-size: 12px; line-height: 1.45; }
+.how-to { margin: 8px 0 0; padding-top: 8px; border-top: 1px dashed #a49780; font-size: 12px; line-height: 1.55; }
+.dialog-panel { top: 19%; text-align: center; }
+.dialog-panel p { line-height: 1.55; }
+.dialog-actions { margin-top: 14px; }
+.dialog-actions button { width: 100%; margin-top: 9px; }
+.dialog-actions .primary-button { margin-top: 9px; }
+.result-grid { display: flex; justify-content: center; margin: 8px -4px 12px; }
+.result-grid div { flex: 1; margin: 4px; padding: 8px 3px; border-radius: 10px; background: #f5e6c8; }
+.result-grid strong, .result-grid span { display: block; }
+.result-stars { color: var(--gold); font-size: 32px; letter-spacing: 4px; }
+.upgrade-row { margin: 8px 0; padding: 10px; border: 2px solid #a49780; border-radius: 12px; text-align: left; }
+.upgrade-row h3 { margin: 0 0 4px; }
+.upgrade-row p { margin: 4px 0; font-size: 12px; }
+.upgrade-row button { width: 100%; margin-top: 5px; }
+.collection-panel { top: 3%; max-height: 94%; padding: 14px; }
+.collection-heading { display: flex; align-items: center; justify-content: space-between; }
+.collection-heading button { min-height: 40px; box-shadow: none; }
+.collection-content { display: flex; flex-wrap: wrap; margin: 0 -4px; }
+.collection-card { width: 33.333%; padding: 4px; text-align: center; }
+.collection-card-inner { height: 100%; min-height: 118px; padding: 7px 3px; border: 1px solid #c8b58f; border-radius: 10px; background: #fffdf5; }
+.collection-card img { display: block; width: 66px; height: 66px; margin: 0 auto; object-fit: contain; }
+.collection-card strong { display: block; margin-top: 3px; font-size: 12px; }
+.collection-card small { display: block; margin-top: 3px; color: #765e45; font-size: 10px; line-height: 1.3; }
+.collection-card.locked img { filter: grayscale(1); opacity: .22; }
+.toast { position: absolute; z-index: 20; left: 10%; bottom: 4%; width: 80%; padding: 11px; border: 2px solid var(--ink); border-radius: 12px; color: var(--paper); background: rgba(74,53,37,.94); text-align: center; font-size: 13px; pointer-events: none; }
+.page-footer { padding: 14px 0 0; text-align: center; font-size: 11px; }
+
+@media (max-width: 380px) {
+  .app-shell { padding: 8px 8px 12px; }
+  .shop-header h1 { font-size: 25px; }
+  .shop-header p { font-size: 11px; }
+  .panel { padding: 14px; }
+  .home-panel { padding: 13px; }
+  .how-to { font-size: 11px; }
+}
+
+@media (min-width: 700px) and (min-height: 900px) {
+  .app-shell { padding-top: 20px; }
+}

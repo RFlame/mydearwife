@@ -12,6 +12,18 @@
 
 顾客系统包含 **12 位原创独立角色**，每位有不同头像、姓名、性格、简介、台词及耐心/连击窗口修正；当前 20 关的同一队列不会重复角色。主页“顾客图鉴”记录已接待角色，旧存档缺少该字段时自动按空图鉴处理。
 
+## 小红书小工具版
+
+保留 Godot 原版，另提供独立 ES2017 + Canvas 2D 离线小工具，不包含 WASM、PCK、WAV 或大字体。构建与校验方法见 [小工具适配说明](docs/minitool/README.md)。
+
+```bash
+python3 -I tools/build_minitool.py
+node tools/minitool_tests/core_test.js
+python3 -I tools/audit_minitool.py build/snack-dingdong-minitool.zip
+```
+
+待上传产物为 `build/snack-dingdong-minitool.zip`；仍须在创服平台模拟器、Android 与 iOS 真机验证。
+
 ## 运行与测试
 
 ```bash
