@@ -81,6 +81,7 @@ jobs:
             exit 1
           fi
           deploy_log="$RUNNER_TEMP/edgeone-deploy.log"
+          set +e
           npx --yes edgeone@1.7.3 makers deploy build/web \
             --name "$EDGEONE_PROJECT_NAME" \
             --env production \
@@ -88,6 +89,12 @@ jobs:
             --token "$EDGEONE_API_TOKEN" \
             --skip-ai-gateway-sync \
             --json 2>&1 | tee "$deploy_log"
+          deploy_status=${PIPESTATUS[0]}
+          set -e
+          if [[ $deploy_status -ne 0 ]]; then
+            python3 tools/edgeone_pages_result.py "$deploy_log" --diagnose
+            exit "$deploy_status"
+          fi
           python3 tools/edgeone_pages_result.py "$deploy_log" --github-output "$GITHUB_OUTPUT"
 
       - name: Verify public EdgeOne Pages deployment
