@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="760" viewBox="0 0 600 760">
+  <defs>
+    <linearGradient id="bottom" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#C39A64"/>
+      <stop offset="0.52" stop-color="#9D7348"/>
+      <stop offset="1" stop-color="#65452D"/>
+    </linearGradient>
+    <clipPath id="body"><rect x="20" y="42" width="560" height="700" rx="66"/></clipPath>
+  </defs>
+  <!-- 越过 90° 后看到的独立编织篮底，不再把篮口图双面镜像使用。 -->
+  <rect x="20" y="42" width="560" height="700" rx="66" fill="url(#bottom)" stroke="#4A3525" stroke-width="7"/>
+  <g clip-path="url(#body)" fill="none" stroke-linecap="round">
+    <path d="M-60 140 L660 560 M-60 40 L660 460 M-60 240 L660 660 M-60 340 L660 760 M-60 440 L660 860" stroke="#F0CC91" stroke-width="18" opacity="0.32"/>
+    <path d="M-80 610 L650 90 M-80 710 L650 190 M-80 510 L650 -10 M-80 810 L650 290" stroke="#765033" stroke-width="14" opacity="0.34"/>
+    <path d="M80 50 V742 M170 45 V742 M260 45 V742 M350 45 V742 M440 45 V742 M530 60 V728" stroke="#6F4C31" stroke-width="5" opacity="0.30"/>
+    <path d="M25 170 H575 M22 280 H578 M22 390 H578 M22 500 H578 M25 610 H575" stroke="#F3D59F" stroke-width="5" opacity="0.30"/>
+  </g>
+  <rect x="39" y="61" width="522" height="662" rx="53" fill="none" stroke="#E4BD82" stroke-width="8" opacity="0.75"/>
+  <rect x="2" y="220" width="54" height="282" rx="25" fill="none" stroke="#4A3525" stroke-width="16"/>
+  <rect x="2" y="220" width="54" height="282" rx="25" fill="none" stroke="#C8A06A" stroke-width="9"/>
+  <rect x="544" y="220" width="54" height="282" rx="25" fill="none" stroke="#4A3525" stroke-width="16"/>
+  <rect x="544" y="220" width="54" height="282" rx="25" fill="none" stroke="#C8A06A" stroke-width="9"/>
+</svg>

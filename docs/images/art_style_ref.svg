@@ -1,0 +1,229 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="1280" viewBox="0 0 720 1280">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFD98E"/>
+      <stop offset="0.55" stop-color="#FFCE74"/>
+      <stop offset="1" stop-color="#FFB94A"/>
+    </linearGradient>
+    <linearGradient id="basket" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F0553C"/>
+      <stop offset="1" stop-color="#D63E28"/>
+    </linearGradient>
+    <style>
+      .ol { stroke:#5B3A29; stroke-width:5; stroke-linejoin:round; stroke-linecap:round; }
+      .ol3 { stroke:#5B3A29; stroke-width:3.5; stroke-linejoin:round; stroke-linecap:round; }
+      .txt { font-family:'PingFang SC','Hiragino Sans GB',sans-serif; fill:#5B3A29; font-weight:700; }
+    </style>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="720" height="1280" fill="url(#bg)"/>
+  <!-- 背景货架（虚化色块） -->
+  <g opacity="0.35">
+    <rect x="-20" y="120" width="760" height="26" rx="10" fill="#F0553C"/>
+    <rect x="-20" y="260" width="760" height="26" rx="10" fill="#F0553C"/>
+    <g class="ol3" stroke="none">
+      <rect x="20" y="70" width="46" height="50" rx="8" fill="#FF4D4D"/>
+      <rect x="80" y="70" width="46" height="50" rx="8" fill="#4D96FF"/>
+      <rect x="140" y="70" width="46" height="50" rx="8" fill="#06D6A0"/>
+      <rect x="470" y="70" width="46" height="50" rx="8" fill="#9B5DE5"/>
+      <rect x="530" y="70" width="46" height="50" rx="8" fill="#FF9F1C"/>
+      <rect x="590" y="70" width="46" height="50" rx="8" fill="#FF4D4D"/>
+      <rect x="650" y="70" width="46" height="50" rx="8" fill="#4D96FF"/>
+      <rect x="30" y="210" width="46" height="50" rx="8" fill="#FF9F1C"/>
+      <rect x="90" y="210" width="46" height="50" rx="8" fill="#9B5DE5"/>
+      <rect x="560" y="210" width="46" height="50" rx="8" fill="#06D6A0"/>
+      <rect x="620" y="210" width="46" height="50" rx="8" fill="#FF4D4D"/>
+    </g>
+  </g>
+
+  <!-- ① 顶部 HUD -->
+  <rect x="20" y="22" width="680" height="76" rx="26" fill="#FFF6E8" class="ol"/>
+  <circle cx="66" cy="60" r="22" fill="#FFC93C" class="ol3"/>
+  <text x="66" y="68" text-anchor="middle" font-size="24" class="txt">¥</text>
+  <text x="100" y="70" font-size="30" class="txt">1,280</text>
+  <rect x="290" y="36" width="150" height="48" rx="24" fill="#F0553C" class="ol3"/>
+  <text x="365" y="69" text-anchor="middle" font-size="28" fill="#FFF6E8" class="txt" style="fill:#FFF6E8">第 3 关</text>
+  <rect x="612" y="38" width="60" height="44" rx="14" fill="#7ED6B4" class="ol3"/>
+  <rect x="630" y="48" width="7" height="24" rx="3" fill="#5B3A29"/>
+  <rect x="646" y="48" width="7" height="24" rx="3" fill="#5B3A29"/>
+
+  <!-- ② 顾客区 -->
+  <g>
+    <!-- 身体 -->
+    <rect x="96" y="228" width="150" height="96" rx="40" fill="#4D96FF" class="ol"/>
+    <!-- 头 -->
+    <circle cx="170" cy="182" r="62" fill="#FFD9B3" class="ol"/>
+    <!-- 头发 -->
+    <path d="M108 172 a62 62 0 0 1 124 0 l-12 6 a50 50 0 0 0 -100 0 z" fill="#5B3A29"/>
+    <!-- 星星眼 -->
+    <path d="M143 176 l5 11 12 1 -9 8 3 12 -11 -7 -11 7 3 -12 -9 -8 12 -1 z" fill="#5B3A29"/>
+    <path d="M197 176 l5 11 12 1 -9 8 3 12 -11 -7 -11 7 3 -12 -9 -8 12 -1 z" fill="#5B3A29"/>
+    <!-- 嘴 -->
+    <path d="M156 216 q14 12 28 0" fill="none" class="ol3"/>
+    <!-- 腮红 -->
+    <ellipse cx="126" cy="208" rx="10" ry="6" fill="#FF9F9F" opacity="0.8"/>
+    <ellipse cx="214" cy="208" rx="10" ry="6" fill="#FF9F9F" opacity="0.8"/>
+  </g>
+  <!-- 对话气泡 -->
+  <rect x="290" y="128" width="330" height="74" rx="24" fill="#FFF6E8" class="ol3"/>
+  <path d="M300 190 l-26 24 34 -4 z" fill="#FFF6E8" class="ol3"/>
+  <text x="455" y="175" text-anchor="middle" font-size="28" class="txt">今天也要零食自由！</text>
+  <!-- 耐心条 -->
+  <rect x="290" y="222" width="330" height="26" rx="13" fill="#FFF6E8" class="ol3"/>
+  <rect x="295" y="227" width="240" height="16" rx="8" fill="#06D6A0"/>
+  <!-- 排队顾客 -->
+  <circle cx="648" cy="286" r="26" fill="#FFD9B3" class="ol3"/>
+  <path d="M628 280 a20 20 0 0 1 40 0 z" fill="#9B5DE5"/>
+  <circle cx="584" cy="290" r="22" fill="#FFD9B3" class="ol3"/>
+  <path d="M566 285 a18 18 0 0 1 36 0 z" fill="#5B3A29"/>
+
+  <!-- 收银台面 -->
+  <rect x="-20" y="330" width="760" height="200" rx="0" fill="#FFF6E8" class="ol"/>
+  <rect x="-20" y="330" width="760" height="26" fill="#F0553C" class="ol"/>
+
+  <!-- ③ 电子秤 -->
+  <g>
+    <rect x="40" y="392" width="220" height="110" rx="20" fill="#7ED6B4" class="ol"/>
+    <rect x="58" y="376" width="184" height="26" rx="10" fill="#DDE7EC" class="ol3"/>
+    <rect x="66" y="452" width="120" height="36" rx="8" fill="#2F5D50" class="ol3"/>
+    <text x="126" y="479" text-anchor="middle" font-size="26" style="font-family:monospace;fill:#B8F5D3;font-weight:700">128 g</text>
+    <circle cx="216" cy="470" r="14" fill="#F0553C" class="ol3"/>
+    <!-- 秤上的零食：薯片袋 -->
+    <g transform="translate(118,296) rotate(-6)">
+      <rect x="0" y="0" width="66" height="84" rx="12" fill="#FF4D4D" class="ol3"/>
+      <path d="M2 8 h62 M2 76 h62" stroke="#D63E28" stroke-width="6"/>
+      <ellipse cx="33" cy="42" rx="22" ry="24" fill="#FFF6E8" class="ol3"/>
+      <text x="33" y="53" text-anchor="middle" font-size="30" class="txt">脆</text>
+    </g>
+    <text x="150" y="552" text-anchor="middle" font-size="24" class="txt">滴～ 称重完成</text>
+  </g>
+
+  <!-- ③ 分拣盘 7 格 -->
+  <g>
+    <rect x="288" y="384" width="402" height="118" rx="20" fill="#FFD98E" class="ol"/>
+    <!-- 3 个同款果冻 + 4 空格 -->
+    <g class="ol3">
+      <rect x="300" y="396" width="46" height="46" rx="12" fill="#FFF6E8"/>
+      <rect x="356" y="396" width="46" height="46" rx="12" fill="#FFF6E8"/>
+      <rect x="412" y="396" width="46" height="46" rx="12" fill="#FFF6E8"/>
+      <rect x="468" y="396" width="46" height="46" rx="12" fill="#FFF6E8" stroke-dasharray="7 6"/>
+      <rect x="524" y="396" width="46" height="46" rx="12" fill="#FFF6E8" stroke-dasharray="7 6"/>
+      <rect x="580" y="396" width="46" height="46" rx="12" fill="#FFF6E8" stroke-dasharray="7 6"/>
+      <rect x="636" y="396" width="46" height="46" rx="12" fill="#FFF6E8" stroke-dasharray="7 6"/>
+    </g>
+    <!-- 果冻杯（同款三件） -->
+    <g class="ol3">
+      <path d="M306 452 h34 l-5 36 h-24 z" fill="#FF9F1C"/>
+      <ellipse cx="323" cy="452" rx="19" ry="7" fill="#FFC93C"/>
+      <path d="M362 452 h34 l-5 36 h-24 z" fill="#FF9F1C"/>
+      <ellipse cx="379" cy="452" rx="19" ry="7" fill="#FFC93C"/>
+      <path d="M418 452 h34 l-5 36 h-24 z" fill="#FF9F1C"/>
+      <ellipse cx="435" cy="452" rx="19" ry="7" fill="#FFC93C"/>
+    </g>
+    <text x="490" y="552" text-anchor="middle" font-size="24" class="txt">同款 ×3 → 上秤称重</text>
+  </g>
+
+  <!-- ④ 购物篮主交互区 -->
+  <g>
+    <!-- 篮体 -->
+    <path d="M74 640 L646 640 L592 1020 L128 1020 Z" fill="url(#basket)" class="ol"/>
+    <!-- 网格孔 -->
+    <g stroke="#A82E1C" stroke-width="8" stroke-linecap="round" opacity="0.65">
+      <path d="M150 700 h420 M142 790 h436 M134 880 h452 M126 970 h468"/>
+      <path d="M170 650 l-30 360 M270 650 l-16 360 M370 650 v360 M470 650 l16 360 M570 650 l30 360"/>
+    </g>
+    <rect x="60" y="614" width="600" height="40" rx="20" fill="#F0553C" class="ol"/>
+    <path d="M250 614 q110 -70 220 0" fill="none" class="ol" stroke-width="12"/>
+
+    <!-- 篮内零食堆叠（后层） -->
+    <g transform="translate(150,586) rotate(-12)">
+      <rect x="0" y="0" width="86" height="60" rx="10" fill="#4D96FF" class="ol3"/>
+      <circle cx="30" cy="30" r="16" fill="#FFD98E" class="ol3"/>
+      <circle cx="62" cy="30" r="16" fill="#FFD98E" class="ol3"/>
+    </g>
+    <g transform="translate(300,576) rotate(8)">
+      <rect x="0" y="0" width="70" height="88" rx="12" fill="#9B5DE5" class="ol3"/>
+      <text x="35" y="56" text-anchor="middle" font-size="32" class="txt" style="fill:#FFF6E8">糖</text>
+    </g>
+    <g transform="translate(452,576) rotate(-5)">
+      <path d="M18 0 h30 v18 l14 20 v62 h-70 v-62 l14 -20 v-18 z" fill="#06D6A0" class="ol3"/>
+      <rect x="16" y="-8" width="34" height="14" rx="5" fill="#2F5D50" class="ol3"/>
+      <rect x="-2" y="52" width="66" height="30" rx="8" fill="#FFF6E8" class="ol3"/>
+      <text x="31" y="75" text-anchor="middle" font-size="24" class="txt">汽</text>
+    </g>
+
+    <!-- 中层 -->
+    <g transform="translate(104,690) rotate(-8)">
+      <rect x="0" y="0" width="76" height="98" rx="12" fill="#FF4D4D" class="ol3"/>
+      <ellipse cx="38" cy="50" rx="25" ry="28" fill="#FFF6E8" class="ol3"/>
+      <text x="38" y="62" text-anchor="middle" font-size="34" class="txt">脆</text>
+    </g>
+    <g transform="translate(232,700) rotate(6)">
+      <rect x="0" y="0" width="90" height="64" rx="10" fill="#8D5A3B" class="ol3"/>
+      <path d="M30 4 v56 M60 4 v56 M4 32 h82" stroke="#5B3A29" stroke-width="4"/>
+    </g>
+    <g transform="translate(392,690) rotate(-10)">
+      <path d="M8 14 h70 l-9 84 h-52 z" fill="#FF9F1C" class="ol3"/>
+      <ellipse cx="43" cy="14" rx="39" ry="12" fill="#FFC93C" class="ol3"/>
+    </g>
+    <g transform="translate(540,700) rotate(10)">
+      <rect x="0" y="0" width="70" height="92" rx="12" fill="#4D96FF" class="ol3"/>
+      <circle cx="35" cy="46" r="22" fill="#FFD98E" class="ol3"/>
+      <circle cx="28" cy="40" r="3" fill="#5B3A29"/>
+      <circle cx="44" cy="52" r="3" fill="#5B3A29"/>
+      <circle cx="38" cy="36" r="3" fill="#5B3A29"/>
+    </g>
+
+    <!-- 前层 -->
+    <g transform="translate(170,830) rotate(5)">
+      <path d="M8 14 h70 l-9 84 h-52 z" fill="#FF9F1C" class="ol3"/>
+      <ellipse cx="43" cy="14" rx="39" ry="12" fill="#FFC93C" class="ol3"/>
+    </g>
+    <g transform="translate(330,820) rotate(-6)">
+      <rect x="0" y="0" width="80" height="102" rx="12" fill="#FF4D4D" class="ol3"/>
+      <ellipse cx="40" cy="52" rx="26" ry="29" fill="#FFF6E8" class="ol3"/>
+      <text x="40" y="65" text-anchor="middle" font-size="36" class="txt">脆</text>
+    </g>
+    <g transform="translate(486,830) rotate(8)">
+      <circle cx="36" cy="36" r="30" fill="#9B5DE5" class="ol3"/>
+      <path d="M6 30 l-20 -12 v36 z M66 30 l20 -12 v36 z" fill="#9B5DE5" class="ol3"/>
+      <path d="M22 26 q14 12 28 0" fill="none" class="ol3"/>
+    </g>
+    <g transform="translate(60,830) rotate(-14)">
+      <path d="M16 0 h26 v16 l12 18 v58 h-64 v-58 l12 -18 v-16 z" fill="#06D6A0" class="ol3"/>
+      <rect x="12" y="-8" width="34" height="14" rx="5" fill="#2F5D50" class="ol3"/>
+    </g>
+  </g>
+
+  <!-- ⑤ 底部操作区 -->
+  <rect x="20" y="1076" width="680" height="104" rx="30" fill="#FFF6E8" class="ol"/>
+  <!-- combo -->
+  <rect x="44" y="1098" width="196" height="60" rx="30" fill="#FFC93C" class="ol3"/>
+  <text x="142" y="1139" text-anchor="middle" font-size="32" class="txt">COMBO ×6</text>
+  <!-- 道具：吸附 -->
+  <circle cx="330" cy="1128" r="38" fill="#FF9F1C" class="ol3"/>
+  <path d="M312 1112 v18 a18 18 0 0 0 36 0 v-18" fill="none" stroke="#FFF6E8" stroke-width="10" stroke-linecap="round"/>
+  <path d="M312 1112 v10 M348 1112 v10" stroke="#F0553C" stroke-width="10" stroke-linecap="round"/>
+  <!-- 道具：+盘位 -->
+  <circle cx="452" cy="1128" r="38" fill="#7ED6B4" class="ol3"/>
+  <rect x="432" y="1110" width="40" height="36" rx="8" fill="#FFF6E8" class="ol3"/>
+  <path d="M452 1118 v20 M442 1128 h20" stroke="#5B3A29" stroke-width="5" stroke-linecap="round"/>
+  <!-- 道具：冻结 -->
+  <circle cx="574" cy="1128" r="38" fill="#4D96FF" class="ol3"/>
+  <g stroke="#FFF6E8" stroke-width="6" stroke-linecap="round">
+    <path d="M574 1106 v44 M555 1117 l38 22 M555 1139 l38 -22"/>
+  </g>
+  <text x="330" y="1200" text-anchor="middle" font-size="22" class="txt">吸附</text>
+  <text x="452" y="1200" text-anchor="middle" font-size="22" class="txt">+盘位</text>
+  <text x="574" y="1200" text-anchor="middle" font-size="22" class="txt">冻结</text>
+
+  <!-- ⑥ 购物袋进度 -->
+  <g>
+    <path d="M44 1216 h64 l-6 52 h-52 z" fill="#FFF6E8" class="ol3"/>
+    <path d="M58 1216 q18 -26 36 0" fill="none" class="ol3"/>
+    <rect x="136" y="1230" width="540" height="26" rx="13" fill="#FFF6E8" class="ol3"/>
+    <rect x="141" y="1235" width="270" height="16" rx="8" fill="#F0553C"/>
+    <text x="406" y="1251" text-anchor="middle" font-size="22" class="txt">已装袋 6 / 12 组</text>
+  </g>
+</svg>

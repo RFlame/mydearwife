@@ -1,0 +1,26 @@
+; Godot 4.7 — 零食叮叮咚
+config_version=5
+
+[application]
+
+config/name="零食叮叮咚"
+config/description="复古小卖部收银分拣解压游戏（20关 MVP）"
+run/main_scene="res://game/main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[autoload]
+
+SFX="*res://game/sfx.gd"
+
+[display]
+
+window/size/viewport_width=720
+window/size/viewport_height=1280
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true

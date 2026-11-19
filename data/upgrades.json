@@ -1,0 +1,5 @@
+{
+  "tray":   {"name": "称重台",   "costs": [800, 2400], "max_level": 3, "desc": "每级称重台 +1 格（上限 9 格）"},
+  "scale":  {"name": "电子秤",   "costs": [500, 1500], "max_level": 3, "desc": "称重动画 0.4s → 0.3s → 0.2s，连击不断档", "anim_times": [0.4, 0.3, 0.2]},
+  "magnet": {"name": "吸附技能", "costs": [600, 1800], "max_level": 3, "desc": "每局吸附次数 +1", "charges": [1, 2, 3]}
+}

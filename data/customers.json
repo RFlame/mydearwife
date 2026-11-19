@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "customers": [
+    {
+      "id": "aunt_chen",
+      "name": "陈阿姨",
+      "base_type": "normal",
+      "personality": "精打细算",
+      "patience_mult": 1.12,
+      "combo_window_mult": 1.0,
+      "description": "布袋里总装着优惠券，最爱比较散装果干的单价。看起来不急，找到实惠才会眉开眼笑。",
+      "lines": [
+        "老板，称准一点呀！",
+        "今天的果干新鲜吗？",
+        "实惠才是最好的零食。"
+      ],
+      "avatar": "customer_aunt_chen.svg"
+    },
+    {
+      "id": "grandpa_lin",
+      "name": "林爷爷",
+      "base_type": "normal",
+      "personality": "慢条斯理",
+      "patience_mult": 1.22,
+      "combo_window_mult": 1.1,
+      "description": "拎着保温杯慢慢挑点心，愿意多等一会儿。从容的节奏也让连续分拣有更宽的连击窗口。",
+      "lines": [
+        "不着急，慢慢称。",
+        "给我留几块酥点的。",
+        "这店有从前的味道。"
+      ],
+      "avatar": "customer_grandpa_lin.svg"
+    },
+    {
+      "id": "tian_tian",
+      "name": "甜甜",
+      "base_type": "normal",
+      "personality": "甜食收藏家",
+      "patience_mult": 1.05,
+      "combo_window_mult": 1.08,
+      "description": "为收集不同糖纸而来，看到彩色糖果就心情大好。甜味带来的好心情会延长连击节奏。",
+      "lines": [
+        "草莓味的也要！",
+        "这张糖纸我还没有！",
+        "今天也要甜甜的。"
+      ],
+      "avatar": "customer_tian_tian.svg"
+    },
+    {
+      "id": "aunt_hua",
+      "name": "花婶",
+      "base_type": "normal",
+      "personality": "热心话痨",
+      "patience_mult": 1.15,
+      "combo_window_mult": 1.12,
+      "description": "街坊消息和零食安利一样多，聊起来就忘了时间。她的热情鼓劲让连击窗口更宽松。",
+      "lines": [
+        "这个我邻居也说好吃！",
+        "慢慢来，我陪你聊聊。",
+        "多给你介绍几位客人！"
+      ],
+      "avatar": "customer_aunt_hua.svg"
+    },
+    {
+      "id": "xiao_man",
+      "name": "小满",
+      "base_type": "hurried",
+      "personality": "风风火火",
+      "patience_mult": 0.85,
+      "combo_window_mult": 0.95,
+      "description": "下课铃一响就冲进店里，耐心只有普通顾客的 85%。手速够快才能跟上她的催促。",
+      "lines": [
+        "搞快点，要上课啦！",
+        "先称最上面的！",
+        "叮叮咚，快一点！"
+      ],
+      "avatar": "customer_xiao_man.svg"
+    },
+    {
+      "id": "student_xi",
+      "name": "小希",
+      "base_type": "hurried",
+      "personality": "考前冲刺",
+      "patience_mult": 0.88,
+      "combo_window_mult": 1.05,
+      "description": "抱着习题册采购熬夜补给，赶时间却很专注。耐心稍短，但专注让连击窗口略有延长。",
+      "lines": [
+        "下一套卷子还等着我！",
+        "麻烦麻利一点哦。",
+        "饼干和牛奶，补充能量！"
+      ],
+      "avatar": "customer_student_xi.svg"
+    },
+    {
+      "id": "courier_lu",
+      "name": "阿路",
+      "base_type": "hurried",
+      "personality": "分秒必争",
+      "patience_mult": 0.82,
+      "combo_window_mult": 0.9,
+      "description": "送货途中顺手补给，头盔都来不及摘。全场最赶时间，需要更利落地连续点击。",
+      "lines": [
+        "下一单马上超时啦！",
+        "能边称边装袋吗？",
+        "快一点，谢谢老板！"
+      ],
+      "avatar": "customer_courier_lu.svg"
+    },
+    {
+      "id": "night_owl",
+      "name": "阿夜",
+      "base_type": "hurried",
+      "personality": "夜猫补货",
+      "patience_mult": 0.9,
+      "combo_window_mult": 1.08,
+      "description": "赶在夜班开始前囤饮料和卤味，外表困倦，结账却很急。熟悉夜班节奏，连击窗口稍长。",
+      "lines": [
+        "夜班前最后补一波。",
+        "柠檬茶放上面就好。",
+        "速度快一点，我要上班啦。"
+      ],
+      "avatar": "customer_night_owl.svg"
+    },
+    {
+      "id": "boss_wang",
+      "name": "王老板",
+      "base_type": "rich",
+      "personality": "豪爽囤货",
+      "patience_mult": 1.0,
+      "combo_window_mult": 1.0,
+      "description": "谈成生意就来扫一篮招待客人，喜欢的零食从不只买一包，结账时干脆利落。",
+      "lines": [
+        "这些我全要了！",
+        "好吃的尽管装上！",
+        "请客就不能小气。"
+      ],
+      "avatar": "customer_boss_wang.svg"
+    },
+    {
+      "id": "foodie_qi",
+      "name": "小七",
+      "base_type": "rich",
+      "personality": "猎奇美食家",
+      "patience_mult": 1.08,
+      "combo_window_mult": 1.1,
+      "description": "专程寻找没吃过的新口味，愿意为特色零食买单。发现新品时格外兴奋，连击节奏更宽松。",
+      "lines": [
+        "这个口味我没吃过！",
+        "新奇的都给我来一点。",
+        "美味值得认真称重。"
+      ],
+      "avatar": "customer_foodie_qi.svg"
+    },
+    {
+      "id": "teacher_bai",
+      "name": "白老师",
+      "base_type": "rich",
+      "personality": "乐于分享",
+      "patience_mult": 1.12,
+      "combo_window_mult": 1.12,
+      "description": "总给学生和邻居带一篮零食，喜欢把大包分成小份。温和又慷慨，等待时很有耐心。",
+      "lines": [
+        "分着装，孩子们好分享。",
+        "每样都来一点吧。",
+        "好吃的要大家一起尝。"
+      ],
+      "avatar": "customer_teacher_bai.svg"
+    },
+    {
+      "id": "fitness_jun",
+      "name": "阿骏",
+      "base_type": "rich",
+      "personality": "品质至上",
+      "patience_mult": 1.05,
+      "combo_window_mult": 1.05,
+      "description": "训练后认真挑选坚果和肉干，注重配料也讲究效率。为高品质买单，但不喜欢混装出错。",
+      "lines": [
+        "坚果和肉干分开称。",
+        "品质好就值得买。",
+        "训练后的补给不能马虎。"
+      ],
+      "avatar": "customer_fitness_jun.svg"
+    }
+  ]
+}

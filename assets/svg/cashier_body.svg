@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="220" viewBox="0 0 180 220">
+  <defs>
+    <linearGradient id="uniform" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#88A77E"/>
+      <stop offset="1" stop-color="#5F8063"/>
+    </linearGradient>
+    <linearGradient id="hair" x1="0.25" y1="0" x2="0.75" y2="1">
+      <stop offset="0" stop-color="#795042"/>
+      <stop offset="0.55" stop-color="#50352C"/>
+      <stop offset="1" stop-color="#382720"/>
+    </linearGradient>
+    <style>.ol{stroke:#4A3525;stroke-width:4;stroke-linejoin:round;stroke-linecap:round}</style>
+  </defs>
+  <!-- 收银员背向玩家、面向上方柜台；头顶和肩背构成明确的高位俯视。 -->
+  <ellipse cx="90" cy="199" rx="72" ry="15" fill="#4A3525" opacity="0.18"/>
+  <path d="M35 113 Q48 96 70 94 H110 Q132 96 145 113 L160 194 Q133 211 90 213 Q47 211 20 194 Z" fill="url(#uniform)" class="ol"/>
+  <path d="M58 112 L70 101 H110 L122 112 L132 197 Q90 210 48 197 Z" fill="#F2E3C4" stroke="#4A3525" stroke-width="3"/>
+  <path d="M65 111 L79 139 M115 111 L101 139" fill="none" stroke="#D4C09D" stroke-width="7" stroke-linecap="round"/>
+  <path d="M53 174 Q90 184 127 174 M90 139 V199" fill="none" stroke="#D4C09D" stroke-width="3" opacity="0.9"/>
+  <path d="M68 177 Q90 188 112 177 L108 192 Q90 199 72 192 Z" fill="#C94F3D" stroke="#4A3525" stroke-width="3"/>
+  <path d="M75 94 H105 L109 111 Q90 124 71 111 Z" fill="#E8AE82" class="ol"/>
+  <path d="M67 94 L90 105 L113 94 L117 106 L90 120 L63 106 Z" fill="#C94F3D" class="ol"/>
+  <ellipse cx="40" cy="65" rx="11" ry="16" fill="#E8AE82" class="ol"/>
+  <ellipse cx="140" cy="65" rx="11" ry="16" fill="#E8AE82" class="ol"/>
+  <!-- 不画正面五官，以完整发顶、发旋和脑后轮廓避免误读为正面立绘。 -->
+  <ellipse cx="90" cy="57" rx="52" ry="51" fill="url(#hair)" class="ol"/>
+  <path d="M43 52 Q50 15 86 9 Q122 8 138 39 Q117 23 94 27 Q68 31 43 52 Z" fill="#795042" opacity="0.82"/>
+  <path d="M47 74 Q61 97 90 105 Q119 97 133 74 Q118 88 90 87 Q62 88 47 74 Z" fill="#382720" opacity="0.85"/>
+  <path d="M55 40 Q72 16 101 20 M49 55 Q68 32 87 33 M112 29 Q128 42 129 60" fill="none" stroke="#9A6951" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+  <path d="M91 42 C105 31 113 49 101 57 C88 66 77 52 84 44 C90 38 99 43 96 49" fill="none" stroke="#382720" stroke-width="4" stroke-linecap="round"/>
+  <path d="M75 9 Q90 2 105 9" fill="none" stroke="#4A3525" stroke-width="4" stroke-linecap="round"/>
+</svg>

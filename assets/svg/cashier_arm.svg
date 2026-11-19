@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="54" height="112" viewBox="0 0 54 112">
+  <style>.ol{stroke:#4A3525;stroke-width:4;stroke-linejoin:round;stroke-linecap:round}</style>
+  <!-- 以袖口底部为肩部 pivot，前臂和手朝向上方柜台伸出。 -->
+  <path d="M13 62 H41 L46 104 Q28 113 8 104 Z" fill="#6F916D" class="ol"/>
+  <path d="M13 59 H41 L42 72 H12 Z" fill="#F2E3C4" class="ol"/>
+  <path d="M18 28 H36 L39 63 H15 Z" fill="#F2C39A" class="ol"/>
+  <path d="M14 23 Q11 12 18 7 Q24 3 29 7 Q35 4 39 11 Q43 19 38 28 Q34 36 25 35 Q17 34 14 23 Z" fill="#F2C39A" class="ol"/>
+  <path d="M19 13 Q24 15 24 21 M30 11 Q34 14 32 20" fill="none" stroke="#C78564" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M19 27 Q27 32 35 27" fill="none" stroke="#D89670" stroke-width="3" stroke-linecap="round"/>
+</svg>

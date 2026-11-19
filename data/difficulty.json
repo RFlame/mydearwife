@@ -1,0 +1,29 @@
+{
+  "active_preset": "standard",
+  "presets": {
+    "relax": {
+      "tray_slots": 8,
+      "patience_scale": 2.0,
+      "combo_window_sec": 4.0,
+      "magnet_charges": 3,
+      "auto_hint": true,
+      "deadlock_protection": true
+    },
+    "standard": {
+      "tray_slots": 7,
+      "patience_scale": 1.0,
+      "combo_window_sec": 3.0,
+      "magnet_charges": 1,
+      "auto_hint": false,
+      "deadlock_protection": false
+    },
+    "challenge": {
+      "tray_slots": 6,
+      "patience_scale": 0.8,
+      "combo_window_sec": 2.5,
+      "magnet_charges": 1,
+      "auto_hint": false,
+      "deadlock_protection": false
+    }
+  }
+}

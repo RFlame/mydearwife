@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+  <g stroke="#4A3525" stroke-width="4" stroke-linejoin="round">
+    <path d="M32 26 h56 v74 h-56 z" fill="#C8A06A"/>
+    <path d="M32 26 l8 -12 h40 l8 12" fill="#B08A52"/>
+    <circle cx="60" cy="62" r="24" fill="#F5E6C8"/>
+  </g>
+  <text x="60" y="76" text-anchor="middle" font-size="40" style="font-family:'PingFang SC',sans-serif;fill:#4A3525;font-weight:900">?</text>
+</svg>

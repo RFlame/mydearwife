@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="780" viewBox="0 0 720 780">
+  <defs>
+    <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#BE995F"/>
+      <stop offset="1" stop-color="#A97D48"/>
+    </linearGradient>
+  </defs>
+  <rect width="720" height="780" fill="url(#wood)"/>
+  <g fill="none" stroke="#8F653D" stroke-width="3" opacity="0.42">
+    <path d="M0 118 H720 M0 334 H720 M0 556 H720"/>
+    <path d="M36 52 C180 20 302 86 456 48 S660 36 720 62"/>
+    <path d="M0 184 C160 150 302 220 498 174 S652 168 720 190"/>
+    <path d="M22 406 C180 368 322 440 512 396 S664 390 720 410"/>
+    <path d="M0 668 C180 620 324 704 520 652 S674 650 720 674"/>
+  </g>
+  <g fill="none" stroke="#D8B77C" stroke-width="2" opacity="0.35">
+    <path d="M0 124 H720 M0 340 H720 M0 562 H720"/>
+    <path d="M54 266 C196 238 340 292 628 250"/>
+    <path d="M80 734 C240 700 410 752 650 716"/>
+  </g>
+  <g fill="#6F4D31" opacity="0.45">
+    <circle cx="18" cy="118" r="4"/><circle cx="702" cy="118" r="4"/>
+    <circle cx="18" cy="556" r="4"/><circle cx="702" cy="556" r="4"/>
+  </g>
+</svg>

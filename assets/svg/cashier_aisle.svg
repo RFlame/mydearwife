@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="256" viewBox="0 0 720 256">
+  <defs>
+    <linearGradient id="lip" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#D0A568"/>
+      <stop offset=".35" stop-color="#805735"/>
+      <stop offset="1" stop-color="#4A3525"/>
+    </linearGradient>
+  </defs>
+  <rect width="720" height="256" fill="#788476"/>
+  <g fill="none" stroke="#58675C" stroke-width="3">
+    <path d="M0 0H720M0 128H720M0 256H720"/>
+    <path d="M180 0V128M540 0V128M0 128V256M360 128V256M720 128V256"/>
+  </g>
+  <g fill="none" stroke="#A6AD93" stroke-width="2" opacity=".28">
+    <path d="M10 12H169M190 12H529M550 12H710M12 141H349M372 141H708"/>
+  </g>
+  <rect width="720" height="16" fill="url(#lip)"/>
+  <path d="M0 16H720" stroke="#E8C97A" stroke-width="2" opacity=".55"/>
+  <path d="M0 238H720" stroke="#4A3525" stroke-width="4" opacity=".25"/>
+  <g fill="none" stroke="#F5E6C8" stroke-width="3" opacity=".14">
+    <path d="M250 192H470M270 206H450"/>
+    <path d="M292 178L310 192L292 206M428 178L410 192L428 206"/>
+  </g>
+</svg>

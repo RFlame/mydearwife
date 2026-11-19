@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="250" height="350" viewBox="0 300 250 350">
+  <defs>
+    <linearGradient id="platform" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F1E8D4"/>
+      <stop offset="1" stop-color="#C9BBA2"/>
+    </linearGradient>
+    <style>.ol{stroke:#4A3525;stroke-width:5;stroke-linejoin:round;stroke-linecap:round}</style>
+  </defs>
+  <ellipse cx="130" cy="626" rx="116" ry="18" fill="#4A3525" opacity="0.22"/>
+  <path d="M24 300 H226 L246 614 Q247 632 228 634 H22 Q3 632 4 614 Z" fill="#7A9B76" class="ol"/>
+  <path d="M24 300 H226 L232 326 H18 Z" fill="#9AB293" opacity="0.8"/>
+  <rect x="14" y="320" width="222" height="214" rx="25" fill="url(#platform)" class="ol"/>
+  <rect x="26" y="332" width="198" height="190" rx="20" fill="none" stroke="#A49780" stroke-width="3" stroke-dasharray="8 7"/>
+  <path d="M34 346 H216" stroke="#FFFFFF" stroke-width="4" opacity="0.45" stroke-linecap="round"/>
+  <rect x="38" y="548" width="134" height="50" rx="8" fill="#2F4A3F" class="ol"/>
+  <circle cx="207" cy="574" r="18" fill="#C94F3D" class="ol"/>
+  <circle cx="207" cy="574" r="7" fill="#A83A2C"/>
+  <rect x="76" y="606" width="98" height="18" rx="6" fill="#F5E6C8" stroke="#4A3525" stroke-width="3"/>
+</svg>

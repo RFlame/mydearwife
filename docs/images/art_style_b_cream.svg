@@ -1,0 +1,195 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="1280" viewBox="0 0 720 1280">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FBF6EF"/>
+      <stop offset="1" stop-color="#F3E9DB"/>
+    </linearGradient>
+    <style>
+      .ol { stroke:#8A7B6E; stroke-width:4; stroke-linejoin:round; stroke-linecap:round; }
+      .ol3 { stroke:#8A7B6E; stroke-width:2.5; stroke-linejoin:round; stroke-linecap:round; }
+      .txt { font-family:'PingFang SC','Hiragino Sans GB',sans-serif; fill:#6B5F55; font-weight:600; }
+    </style>
+  </defs>
+
+  <rect width="720" height="1280" fill="url(#bg)"/>
+  <!-- 背景货架（极淡） -->
+  <g opacity="0.5">
+    <rect x="-20" y="120" width="760" height="20" rx="10" fill="#E5D6C4"/>
+    <rect x="-20" y="260" width="760" height="20" rx="10" fill="#E5D6C4"/>
+    <rect x="20" y="72" width="44" height="48" rx="10" fill="#F4C6C6"/>
+    <rect x="80" y="72" width="44" height="48" rx="10" fill="#BFD8EA"/>
+    <rect x="140" y="72" width="44" height="48" rx="10" fill="#B5DDC8"/>
+    <rect x="470" y="72" width="44" height="48" rx="10" fill="#D9C6E8"/>
+    <rect x="530" y="72" width="44" height="48" rx="10" fill="#F9CF9F"/>
+    <rect x="590" y="72" width="44" height="48" rx="10" fill="#F4C6C6"/>
+    <rect x="650" y="72" width="44" height="48" rx="10" fill="#BFD8EA"/>
+    <rect x="30" y="212" width="44" height="48" rx="10" fill="#F9CF9F"/>
+    <rect x="90" y="212" width="44" height="48" rx="10" fill="#D9C6E8"/>
+    <rect x="560" y="212" width="44" height="48" rx="10" fill="#B5DDC8"/>
+    <rect x="620" y="212" width="44" height="48" rx="10" fill="#F4C6C6"/>
+  </g>
+  <!-- 干花装饰 -->
+  <g class="ol3" fill="none" opacity="0.8">
+    <path d="M668 320 v-60 M668 300 q-18 -10 -16 -30 M668 290 q18 -10 16 -30" stroke="#A8B89A"/>
+    <circle cx="652" cy="266" r="7" fill="#F4C6C6" stroke="none"/>
+    <circle cx="684" cy="256" r="7" fill="#F9CF9F" stroke="none"/>
+    <circle cx="668" cy="252" r="7" fill="#D9C6E8" stroke="none"/>
+  </g>
+
+  <!-- HUD -->
+  <rect x="20" y="22" width="680" height="76" rx="30" fill="#FFFFFF" class="ol"/>
+  <circle cx="66" cy="60" r="22" fill="#F9E7C8" class="ol3"/>
+  <text x="66" y="68" text-anchor="middle" font-size="24" class="txt">¥</text>
+  <text x="100" y="70" font-size="30" class="txt">1,280</text>
+  <rect x="290" y="36" width="150" height="48" rx="24" fill="#A8D5BA" class="ol3"/>
+  <text x="365" y="69" text-anchor="middle" font-size="28" class="txt">第 3 关</text>
+  <rect x="612" y="38" width="60" height="44" rx="16" fill="#F7C8D0" class="ol3"/>
+  <rect x="630" y="48" width="7" height="24" rx="3" fill="#6B5F55"/>
+  <rect x="646" y="48" width="7" height="24" rx="3" fill="#6B5F55"/>
+
+  <!-- 顾客：豆豆眼温柔系 -->
+  <rect x="96" y="228" width="150" height="96" rx="44" fill="#F7C8D0" class="ol"/>
+  <circle cx="170" cy="182" r="62" fill="#FBE3CE" class="ol"/>
+  <path d="M108 176 a62 62 0 0 1 124 0 q-20 -26 -62 -26 t-62 26 z" fill="#B08968"/>
+  <circle cx="146" cy="186" r="5.5" fill="#6B5F55"/>
+  <circle cx="194" cy="186" r="5.5" fill="#6B5F55"/>
+  <path d="M158 212 q12 10 24 0" fill="none" class="ol3"/>
+  <ellipse cx="128" cy="206" rx="11" ry="7" fill="#F4B8B8" opacity="0.9"/>
+  <ellipse cx="212" cy="206" rx="11" ry="7" fill="#F4B8B8" opacity="0.9"/>
+  <!-- 气泡 -->
+  <rect x="290" y="128" width="330" height="74" rx="28" fill="#FFFFFF" class="ol3"/>
+  <path d="M300 190 l-26 24 34 -4 z" fill="#FFFFFF" class="ol3"/>
+  <text x="455" y="175" text-anchor="middle" font-size="28" class="txt">慢慢来，不着急～</text>
+  <rect x="290" y="222" width="330" height="26" rx="13" fill="#FFFFFF" class="ol3"/>
+  <rect x="295" y="227" width="240" height="16" rx="8" fill="#A8D5BA"/>
+  <circle cx="648" cy="286" r="26" fill="#FBE3CE" class="ol3"/>
+  <path d="M626 282 a22 22 0 0 1 44 0 z" fill="#D9C6E8"/>
+  <circle cx="584" cy="290" r="22" fill="#FBE3CE" class="ol3"/>
+  <path d="M566 286 a18 18 0 0 1 36 0 z" fill="#B08968"/>
+
+  <!-- 收银台 -->
+  <rect x="-20" y="330" width="760" height="200" fill="#FFFFFF" class="ol"/>
+  <rect x="-20" y="330" width="760" height="24" fill="#A8D5BA" class="ol"/>
+
+  <!-- 电子秤：奶白+薄荷 -->
+  <rect x="40" y="392" width="220" height="110" rx="26" fill="#FDFBF7" class="ol"/>
+  <rect x="58" y="376" width="184" height="26" rx="13" fill="#E8E2DA" class="ol3"/>
+  <rect x="66" y="452" width="120" height="36" rx="10" fill="#E8F0EC" class="ol3"/>
+  <text x="126" y="479" text-anchor="middle" font-size="26" style="font-family:monospace;fill:#5F7267;font-weight:700">128 g</text>
+  <circle cx="216" cy="470" r="14" fill="#F7C8D0" class="ol3"/>
+  <g transform="translate(118,296) rotate(-6)">
+    <rect x="0" y="0" width="66" height="84" rx="14" fill="#F4A7A7" class="ol3"/>
+    <path d="M2 10 h62 M2 74 h62" stroke="#E58F8F" stroke-width="5"/>
+    <ellipse cx="33" cy="42" rx="22" ry="24" fill="#FFFFFF" class="ol3"/>
+    <text x="33" y="53" text-anchor="middle" font-size="30" class="txt">脆</text>
+  </g>
+  <text x="150" y="552" text-anchor="middle" font-size="24" class="txt">滴～ 称重完成</text>
+
+  <!-- 分拣盘 -->
+  <rect x="288" y="384" width="402" height="118" rx="26" fill="#F5E6D3" class="ol"/>
+  <g class="ol3">
+    <rect x="300" y="396" width="46" height="46" rx="14" fill="#FFFFFF"/>
+    <rect x="356" y="396" width="46" height="46" rx="14" fill="#FFFFFF"/>
+    <rect x="412" y="396" width="46" height="46" rx="14" fill="#FFFFFF"/>
+    <rect x="468" y="396" width="46" height="46" rx="14" fill="#FFFFFF" stroke-dasharray="6 6"/>
+    <rect x="524" y="396" width="46" height="46" rx="14" fill="#FFFFFF" stroke-dasharray="6 6"/>
+    <rect x="580" y="396" width="46" height="46" rx="14" fill="#FFFFFF" stroke-dasharray="6 6"/>
+    <rect x="636" y="396" width="46" height="46" rx="14" fill="#FFFFFF" stroke-dasharray="6 6"/>
+    <path d="M306 452 h34 l-5 36 h-24 z" fill="#F9CF9F"/>
+    <ellipse cx="323" cy="452" rx="19" ry="7" fill="#F9E7C8"/>
+    <path d="M362 452 h34 l-5 36 h-24 z" fill="#F9CF9F"/>
+    <ellipse cx="379" cy="452" rx="19" ry="7" fill="#F9E7C8"/>
+    <path d="M418 452 h34 l-5 36 h-24 z" fill="#F9CF9F"/>
+    <ellipse cx="435" cy="452" rx="19" ry="7" fill="#F9E7C8"/>
+  </g>
+  <text x="490" y="552" text-anchor="middle" font-size="24" class="txt">同款 ×3 → 上秤称重</text>
+
+  <!-- 购物篮：樱花粉 -->
+  <path d="M74 640 L646 640 L592 1020 L128 1020 Z" fill="#F4B8C4" class="ol"/>
+  <g stroke="#DE93A5" stroke-width="7" stroke-linecap="round" opacity="0.7">
+    <path d="M150 700 h420 M142 790 h436 M134 880 h452 M126 970 h468"/>
+    <path d="M170 650 l-30 360 M270 650 l-16 360 M370 650 v360 M470 650 l16 360 M570 650 l30 360"/>
+  </g>
+  <rect x="60" y="614" width="600" height="40" rx="20" fill="#F7C8D0" class="ol"/>
+  <path d="M250 614 q110 -70 220 0" fill="none" class="ol" stroke-width="10"/>
+
+  <!-- 零食（pastel） -->
+  <g transform="translate(150,586) rotate(-12)" class="ol3">
+    <rect x="0" y="0" width="86" height="60" rx="12" fill="#BFD8EA"/>
+    <circle cx="30" cy="30" r="16" fill="#F9E7C8"/>
+    <circle cx="62" cy="30" r="16" fill="#F9E7C8"/>
+  </g>
+  <g transform="translate(300,576) rotate(8)">
+    <rect x="0" y="0" width="70" height="88" rx="14" fill="#D9C6E8" class="ol3"/>
+    <text x="35" y="56" text-anchor="middle" font-size="32" class="txt">糖</text>
+  </g>
+  <g transform="translate(452,576) rotate(-5)" class="ol3">
+    <path d="M18 0 h30 v18 l14 20 v62 h-70 v-62 l14 -20 v-18 z" fill="#B5DDC8"/>
+    <rect x="16" y="-8" width="34" height="14" rx="6" fill="#8FB8A2"/>
+    <rect x="-2" y="52" width="66" height="30" rx="10" fill="#FFFFFF"/>
+    <text x="31" y="75" text-anchor="middle" font-size="24" class="txt" stroke="none">汽</text>
+  </g>
+  <g transform="translate(104,690) rotate(-8)">
+    <rect x="0" y="0" width="76" height="98" rx="14" fill="#F4A7A7" class="ol3"/>
+    <ellipse cx="38" cy="50" rx="25" ry="28" fill="#FFFFFF" class="ol3"/>
+    <text x="38" y="62" text-anchor="middle" font-size="34" class="txt">脆</text>
+  </g>
+  <g transform="translate(232,700) rotate(6)" class="ol3">
+    <rect x="0" y="0" width="90" height="64" rx="12" fill="#C9A98C"/>
+    <path d="M30 4 v56 M60 4 v56 M4 32 h82" stroke="#8A7B6E" stroke-width="3"/>
+  </g>
+  <g transform="translate(392,690) rotate(-10)" class="ol3">
+    <path d="M8 14 h70 l-9 84 h-52 z" fill="#F9CF9F"/>
+    <ellipse cx="43" cy="14" rx="39" ry="12" fill="#F9E7C8"/>
+  </g>
+  <g transform="translate(540,700) rotate(10)">
+    <rect x="0" y="0" width="70" height="92" rx="14" fill="#BFD8EA" class="ol3"/>
+    <circle cx="35" cy="46" r="22" fill="#F9E7C8" class="ol3"/>
+    <circle cx="28" cy="40" r="3" fill="#8A7B6E"/>
+    <circle cx="44" cy="52" r="3" fill="#8A7B6E"/>
+    <circle cx="38" cy="36" r="3" fill="#8A7B6E"/>
+  </g>
+  <g transform="translate(170,830) rotate(5)" class="ol3">
+    <path d="M8 14 h70 l-9 84 h-52 z" fill="#F9CF9F"/>
+    <ellipse cx="43" cy="14" rx="39" ry="12" fill="#F9E7C8"/>
+  </g>
+  <g transform="translate(330,820) rotate(-6)">
+    <rect x="0" y="0" width="80" height="102" rx="14" fill="#F4A7A7" class="ol3"/>
+    <ellipse cx="40" cy="52" rx="26" ry="29" fill="#FFFFFF" class="ol3"/>
+    <text x="40" y="65" text-anchor="middle" font-size="36" class="txt">脆</text>
+  </g>
+  <g transform="translate(486,830) rotate(8)" class="ol3">
+    <circle cx="36" cy="36" r="30" fill="#D9C6E8"/>
+    <path d="M6 30 l-20 -12 v36 z M66 30 l20 -12 v36 z" fill="#D9C6E8"/>
+    <path d="M22 26 q14 12 28 0" fill="none"/>
+  </g>
+  <g transform="translate(60,830) rotate(-14)" class="ol3">
+    <path d="M16 0 h26 v16 l12 18 v58 h-64 v-58 l12 -18 v-16 z" fill="#B5DDC8"/>
+    <rect x="12" y="-8" width="34" height="14" rx="6" fill="#8FB8A2"/>
+  </g>
+
+  <!-- 底部操作区 -->
+  <rect x="20" y="1076" width="680" height="104" rx="34" fill="#FFFFFF" class="ol"/>
+  <rect x="44" y="1098" width="196" height="60" rx="30" fill="#F9E7C8" class="ol3"/>
+  <text x="142" y="1139" text-anchor="middle" font-size="32" class="txt">COMBO ×6</text>
+  <circle cx="330" cy="1128" r="38" fill="#F9CF9F" class="ol3"/>
+  <path d="M312 1112 v18 a18 18 0 0 0 36 0 v-18" fill="none" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round"/>
+  <path d="M312 1112 v10 M348 1112 v10" stroke="#F4A7A7" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="452" cy="1128" r="38" fill="#A8D5BA" class="ol3"/>
+  <rect x="432" y="1110" width="40" height="36" rx="10" fill="#FFFFFF" class="ol3"/>
+  <path d="M452 1118 v20 M442 1128 h20" stroke="#6B5F55" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="574" cy="1128" r="38" fill="#BFD8EA" class="ol3"/>
+  <g stroke="#FFFFFF" stroke-width="6" stroke-linecap="round">
+    <path d="M574 1106 v44 M555 1117 l38 22 M555 1139 l38 -22"/>
+  </g>
+  <text x="330" y="1200" text-anchor="middle" font-size="22" class="txt">吸附</text>
+  <text x="452" y="1200" text-anchor="middle" font-size="22" class="txt">+盘位</text>
+  <text x="574" y="1200" text-anchor="middle" font-size="22" class="txt">冻结</text>
+
+  <!-- 购物袋进度 -->
+  <path d="M44 1216 h64 l-6 52 h-52 z" fill="#FFFFFF" class="ol3"/>
+  <path d="M58 1216 q18 -26 36 0" fill="none" class="ol3"/>
+  <rect x="136" y="1230" width="540" height="26" rx="13" fill="#FFFFFF" class="ol3"/>
+  <rect x="141" y="1235" width="270" height="16" rx="8" fill="#A8D5BA"/>
+  <text x="406" y="1251" text-anchor="middle" font-size="22" class="txt">已装袋 6 / 12 组</text>
+</svg>

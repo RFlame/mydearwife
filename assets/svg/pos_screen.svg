@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="194" height="132" viewBox="0 0 194 132">
+  <style>.ol{stroke:#4A3525;stroke-width:4;stroke-linejoin:round;stroke-linecap:round}</style>
+  <path d="M8 2 H186 L193 130 H1 Z" fill="#7A9B76" class="ol"/>
+  <path d="M8 2 H186 L188 24 H6 Z" fill="#9AB293"/>
+  <rect x="12" y="28" width="170" height="48" rx="4" fill="#2F4A3F" class="ol"/>
+  <path d="M18 34 H176" stroke="#537365" stroke-width="2" opacity="0.65"/>
+  <path d="M5 128 H189" stroke="#5E7D5B" stroke-width="6" stroke-linecap="round"/>
+</svg>

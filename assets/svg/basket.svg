@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="760" viewBox="0 0 600 760">
+  <defs>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E0B87E"/>
+      <stop offset="0.48" stop-color="#B08A52"/>
+      <stop offset="1" stop-color="#8F653D"/>
+    </linearGradient>
+    <radialGradient id="opening" cx="46%" cy="40%" r="70%">
+      <stop offset="0" stop-color="#A77E4D"/>
+      <stop offset="0.72" stop-color="#765338"/>
+      <stop offset="1" stop-color="#4A3525"/>
+    </radialGradient>
+    <style>.ol{stroke:#4A3525;stroke-width:6;stroke-linejoin:round;stroke-linecap:round}</style>
+  </defs>
+  <!-- 正俯视篮口：只表现外沿、开口和内侧深度，不绘制完整篮身。 -->
+  <path d="M86 42 H514 Q580 42 580 108 V676 Q580 742 514 742 H86 Q20 742 20 676 V108 Q20 42 86 42 Z M97 70 H503 Q557 70 557 124 V660 Q557 714 503 714 H97 Q43 714 43 660 V124 Q43 70 97 70 Z" fill="url(#rim)" fill-rule="evenodd" class="ol"/>
+  <rect x="43" y="70" width="514" height="644" rx="54" fill="none" stroke="#4A3525" stroke-width="5"/>
+  <rect x="61" y="91" width="478" height="602" rx="45" fill="none" stroke="#E0B87E" stroke-width="5"/>
+  <!-- 编织纹只沿篮口外沿排布，中心保持为可看到零食堆的开口。 -->
+  <g fill="none" stroke="#F0CC91" stroke-width="5" stroke-linecap="round" opacity="0.62">
+    <path d="M88 61 L74 82 M142 54 L132 77 M198 50 L191 73 M254 47 L251 70 M310 47 L313 70 M366 50 L373 73 M422 54 L432 77 M478 61 L492 82"/>
+    <path d="M88 723 L74 702 M142 730 L132 707 M198 734 L191 711 M254 737 L251 714 M310 737 L313 714 M366 734 L373 711 M422 730 L432 707 M478 723 L492 702"/>
+    <path d="M38 142 L59 151 M34 204 L57 211 M31 268 L55 272 M30 332 L54 334 M30 396 L54 396 M30 460 L54 458 M31 524 L55 520 M34 588 L57 581 M38 650 L59 641"/>
+    <path d="M562 142 L541 151 M566 204 L543 211 M569 268 L545 272 M570 332 L546 334 M570 396 L546 396 M570 460 L546 458 M569 524 L545 520 M566 588 L543 581 M562 650 L541 641"/>
+  </g>
+  <path d="M76 90 Q300 48 524 90" fill="none" stroke="#F3D59F" stroke-width="6" stroke-linecap="round" opacity="0.76"/>
+  <path d="M78 690 Q300 724 522 690" fill="none" stroke="#805833" stroke-width="6" stroke-linecap="round" opacity="0.72"/>
+  <!-- 两只提手平放在篮口左右。 -->
+  <rect x="2" y="220" width="54" height="282" rx="25" fill="none" stroke="#4A3525" stroke-width="16"/>
+  <rect x="2" y="220" width="54" height="282" rx="25" fill="none" stroke="#C8A06A" stroke-width="9"/>
+  <rect x="544" y="220" width="54" height="282" rx="25" fill="none" stroke="#4A3525" stroke-width="16"/>
+  <rect x="544" y="220" width="54" height="282" rx="25" fill="none" stroke="#C8A06A" stroke-width="9"/>
+</svg>
