@@ -3,8 +3,12 @@ extends RefCounted
 ## 桌面零食模型：购物篮倒出后的二维堆叠、遮挡曝光与拖动整理。
 ## 类名保留以减少迁移范围；坐标使用桌面局部逻辑像素，与 Node/SceneTree 无关。
 
-# 局部底边 800 经桌面 0.78 缩放后对应屏幕 y=1024，底部 1/5 仅作收银员过道。
+# 初始撒落仍使用原安全区，保留各小关卡固定种子的落点。
 const TABLE_BOUNDS := Rect2(24, 60, 552, 740)
+# 拖动可覆盖整个可见台面，但包装四角不能进入称重平台或底部收银员过道。
+const DRAG_BOUNDS := Rect2(16, -92, 888, 892)
+const DRAG_SCALE_BLOCK := Rect2(580, -152, 320, 450)
+const DRAG_SCALE_GAP := 4.0
 const GATHER_RADIUS := 220.0
 
 var items: Array = []  # {uid, snack, size, blind, revealed, gift, picked, x, y, rot, layer}
@@ -69,16 +73,49 @@ func exposed_point(uid: int) -> Vector2:
 	return Vector2(-1, -1)
 
 
-## 把拖动后的中心点限制在左侧桌面内，按当前旋转计算四角的安全范围。
+## 初始撒落使用原左侧安全区，按当前旋转计算四角的安全范围。
 func clamp_to_table(item: Dictionary, point: Vector2) -> Vector2:
-	var half := hit_size(item) * 0.5
-	var angle := deg_to_rad(float(item.get("rot", 0.0)))
-	var extent := Vector2(
-		absf(cos(angle)) * half.x + absf(sin(angle)) * half.y,
-		absf(sin(angle)) * half.x + absf(cos(angle)) * half.y)
+	var extent := _rotated_extent(item)
 	return Vector2(
 		clampf(point.x, TABLE_BOUNDS.position.x + extent.x, TABLE_BOUNDS.end.x - extent.x),
 		clampf(point.y, TABLE_BOUNDS.position.y + extent.y, TABLE_BOUNDS.end.y - extent.y))
+
+
+## 手动整理可使用整张台面；称重台按包装旋转范围扩张后作为禁放区。
+func clamp_to_drag(item: Dictionary, point: Vector2) -> Vector2:
+	var extent := _rotated_extent(item)
+	var allowed := Rect2(DRAG_BOUNDS.position + extent, DRAG_BOUNDS.size - extent * 2.0)
+	var clamped := Vector2(
+		clampf(point.x, allowed.position.x, allowed.end.x),
+		clampf(point.y, allowed.position.y, allowed.end.y))
+	var margin := extent + Vector2.ONE * DRAG_SCALE_GAP
+	var blocked := DRAG_SCALE_BLOCK.grow_individual(margin.x, margin.y, margin.x, margin.y)
+	if not blocked.has_point(clamped):
+		return clamped
+	var candidates := [
+		Vector2(blocked.position.x, clamped.y), Vector2(blocked.end.x, clamped.y),
+		Vector2(clamped.x, blocked.position.y), Vector2(clamped.x, blocked.end.y),
+	]
+	var best := clamped
+	var best_distance := INF
+	for candidate: Vector2 in candidates:
+		if candidate.x < allowed.position.x or candidate.x > allowed.end.x:
+			continue
+		if candidate.y < allowed.position.y or candidate.y > allowed.end.y:
+			continue
+		var distance := clamped.distance_squared_to(candidate)
+		if distance < best_distance:
+			best = candidate
+			best_distance = distance
+	return best
+
+
+func _rotated_extent(item: Dictionary) -> Vector2:
+	var half := hit_size(item) * 0.5
+	var angle := deg_to_rad(float(item.get("rot", 0.0)))
+	return Vector2(
+		absf(cos(angle)) * half.x + absf(sin(angle)) * half.y,
+		absf(sin(angle)) * half.x + absf(cos(angle)) * half.y)
 
 
 ## 拖动是核心命令：更新后续退货与双击距离所用的位置，可选提升到最上层。
@@ -86,7 +123,7 @@ func move_item(uid: int, point: Vector2, bring_to_front: bool = false) -> bool:
 	var target := get_item(uid)
 	if target.is_empty() or target.get("picked", false):
 		return false
-	var clamped := clamp_to_table(target, Vector2(snappedf(point.x, 0.01), snappedf(point.y, 0.01)))
+	var clamped := clamp_to_drag(target, Vector2(snappedf(point.x, 0.01), snappedf(point.y, 0.01)))
 	target["x"] = clamped.x
 	target["y"] = clamped.y
 	if bring_to_front:

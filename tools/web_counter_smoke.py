@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""本轮 Web 聚焦检查：固定篮口撒落、四区拖放/退回及集齐自动称重。
+"""本轮 Web 聚焦检查：四区拖放、自动/手动结算、任意位置双击与第 2 关难度。
 
-不运行完整 web_smoke，不调用任何游戏状态修改接口。
+通过真实鼠标完成第 1 关后进入第 2 关；只读桥不提供游戏状态修改接口。
 用法：python3 -I tools/web_counter_smoke.py [url] [out_dir]
 """
 import asyncio
@@ -131,7 +131,7 @@ async def main() -> int:
             assert all(item["parent_table"] and not item["flying"] and abs(item["global_scale"] - 0.78) < 0.01 for item in game["table_items"]), "Web snacks did not restore standard table scale"
             web.assert_layout(game)
             assert len(game["zones"]) == 4
-            safe = game["layout"]["table_safe"]
+            safe = game["layout"]["drag_bounds"]
             for zone in game["zones"]:
                 rect = zone["rect"]
                 assert safe["x"] <= rect["x"] and safe["y"] <= rect["y"]
@@ -152,15 +152,22 @@ async def main() -> int:
             tapped = await web.wait_snapshot(client, lambda s: s.get("table_tap", {}).get("uid") == target["uid"] and s.get("table_tap", {}).get("seq", 0) >= 1, 5)
             assert tapped["remaining"] == 4 and not tapped["tray"]
             assert all(zone["count"] == 0 for zone in tapped["zones"])
-            assert tapped["cashier"]["action_seq"] == action_before and not tapped["checkout"]["enabled"]
+            assert tapped["cashier"]["action_seq"] == action_before and tapped["auto_settle"] and tapped["manual_settle_seq"] == 0
             await asyncio.sleep(0.3)
 
             async def drag_next_kind():
                 current = await web.wait_snapshot(client, lambda s: s.get("page") == "game" and any(a["snack"] == snack_id for a in s.get("available", [])), 5)
                 available = next(a for a in current["available"] if a["snack"] == snack_id)
                 rect = current["zones"][0]["rect"]
+                bagged_before = current["bagged_items"]
+                uid = available["uid"]
                 await client.drag(available, {"x": rect["x"] + rect["w"] * 0.5, "y": rect["y"] + rect["h"] * 0.5})
-                return available["uid"]
+                await web.wait_snapshot(client, lambda s: s.get("bagged_items", 0) > bagged_before
+                    or any(item["uid"] == uid for zone in s.get("zones", []) for item in zone["items"])
+                    or any(item["uid"] == uid for item in s.get("tray", [])), 5)
+                # 等本次入区抛物线和浏览器鼠标事件完全结束，再取下一个露出点。
+                await asyncio.sleep(0.32)
+                return uid
 
             action_before = tapped["cashier"]["action_seq"]
             await drag_next_kind()
@@ -178,17 +185,52 @@ async def main() -> int:
             await web.wait_snapshot(client, lambda s: s.get("zones", [{ "count": 0 }])[0]["count"] == 1 and not s["zones"][0]["items"][0]["flying"], 5)
             await drag_next_kind()
             queued = await web.wait_snapshot(client, lambda s: s.get("zone_active") == 0 or s.get("zone_queue") == [0] or s.get("bagged_items") == 2, 5)
-            assert not queued["checkout"]["enabled"]
-            if queued["bagged_items"] == 0:
-                await web.click_point(client, queued["checkout"])
-                assert (await web.snapshot(client))["bagged_items"] == 0
+            assert queued["checkout"]["enabled"] and queued["auto_settle"] and queued["manual_settle_seq"] == 0
             weighed = await web.wait_snapshot(client, lambda s: s.get("bagged_items") == 2 and not s.get("tray"), 5)
             assert weighed["bagged_groups"] == 1 and weighed["remaining"] == 2
             assert weighed["zone_active"] == -1 and weighed["zone_queue"] == []
             assert all(zone["count"] == 0 for zone in weighed["zones"])
             assert weighed["progress"]["value"] == weighed["bagged_items"] / weighed["total_items"]
             await client.shot(os.path.join(out_dir, "web_counter_checkout.png"))
-            print("web counter smoke: fixed basket, four zones, table hop, real drag/return and automatic whole-kind weighing ok")
+
+            # 关闭自动模式后，同款集齐仍留在区内；真实双击屏幕任意位置才结算并换客。
+            await web.click_point(client, weighed["checkout"])
+            manual_mode = await web.wait_snapshot(client, lambda s: s.get("page") == "game" and not s.get("auto_settle"), 5)
+            assert manual_mode["checkout"]["enabled"] and manual_mode["manual_settle_seq"] == 0
+            snack_id = manual_mode["available"][0]["snack"]
+            await drag_next_kind()
+            await drag_next_kind()
+            manual_ready = await web.wait_snapshot(client, lambda s: s.get("zone_queue") == [0] and s.get("zones", [{"count": 0}])[0]["count"] == 2, 5)
+            assert manual_ready["bagged_items"] == 2 and not manual_ready["zone_pump_running"]
+            await asyncio.sleep(0.7)
+            held = await web.snapshot(client)
+            assert held["bagged_items"] == 2 and held["zone_active"] == -1 and held["zones"][0]["count"] == 2
+            await client.shot(os.path.join(out_dir, "web_manual_ready.png"))
+            await client.double_click({"x": 690, "y": 1160})
+            manual_done = await web.wait_snapshot(client, lambda s: s.get("page") == "game" and s.get("customer") == 2 and s.get("bagged_items") == 4 and not s.get("switching"), 12)
+            assert manual_done["manual_settle_seq"] == 1 and manual_done["bagged_groups"] == 2
+            assert manual_done["remaining"] == 4 and manual_done["zone_queue"] == [] and manual_done["zone_active"] == -1
+            await client.shot(os.path.join(out_dir, "web_manual_done.png"))
+
+            # 恢复自动模式，真实拖完第二位顾客，再核验下一版第 2 关仍为 3 客、每客 6 件。
+            await web.click_point(client, manual_done["checkout"])
+            await web.wait_snapshot(client, lambda s: s.get("page") == "game" and s.get("auto_settle"), 5)
+            for expected_bagged in [6, 8]:
+                current = await web.wait_snapshot(client, lambda s: s.get("page") == "game" and not s.get("switching") and s.get("available"), 8)
+                snack_id = current["available"][0]["snack"]
+                await drag_next_kind()
+                await drag_next_kind()
+                if expected_bagged < 8:
+                    await web.wait_snapshot(client, lambda s: s.get("bagged_items") == expected_bagged and not s.get("tray"), 8)
+            result = await web.wait_snapshot(client, lambda s: s.get("page") == "result", 12)
+            await web.click_point(client, result["next"])
+            level_two = await web.wait_snapshot(client, lambda s: s.get("page") == "game" and s.get("level") == 2 and not s.get("switching"), 15)
+            assert level_two["customers"] == 3 and level_two["remaining"] == 6 and level_two["total_items"] == 18
+            assert len(level_two["table_items"]) == 6
+            assert all(zone["rect"]["y"] < 600 for zone in level_two["zones"])
+            assert max(zone["rect"]["y"] + zone["rect"]["h"] for zone in level_two["zones"]) < 700
+            await client.shot(os.path.join(out_dir, "web_level2_upper_zones.png"))
+            print("web counter smoke: full auto/manual settlement, screen double click, upper zones and level 2 progression ok")
             ok = True
     except Exception as exc:
         print("WEB COUNTER SMOKE FAILED:", repr(exc))

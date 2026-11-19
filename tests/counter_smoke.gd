@@ -121,7 +121,7 @@ func _run() -> void:
 	await _click(pick_point)
 	_expect(st.tray.is_empty() and st.basket.remaining() == 6 and st.zones.is_clear(), "real table click only bounces without picking or zoning")
 	_expect(gs.snack_nodes[int(pick_item["uid"])].tap_seq == tap_before + 1, "real table click triggers the local hop")
-	_expect(gs.cashier_view.action_seq == action_before and gs._checkout_btn.disabled, "table bounce does not trigger cashier sorting or manual checkout")
+	_expect(gs.cashier_view.action_seq == action_before and gs._auto_settle and gs._manual_settle_seq == 0, "table bounce does not trigger cashier sorting or change settlement mode")
 
 	action_before = gs.cashier_view.action_seq
 	await _drag(pick_point, gs.table_view.to_global(GameScreen.ZONE_RECTS[0].get_center()))
@@ -132,11 +132,32 @@ func _run() -> void:
 		saw_sort_motion = saw_sort_motion or gs.cashier_view.right_arm.rotation < -0.12
 		await get_tree().create_timer(0.02).timeout
 	_expect(saw_sort_motion, "cashier sorting arm visibly moves during its action window")
-	_expect(gs._checkout_btn.disabled and st.bagged_items == 0, "incomplete zone cannot be manually settled at the POS")
+	_expect(not gs._checkout_btn.disabled and gs._auto_settle and st.bagged_items == 0, "incomplete zone waits with the settlement mode button available")
 	await _click(gs._checkout_btn.global_position + gs._checkout_btn.size * 0.5)
-	_expect(st.bagged_items == 0 and st.zones.sections[0].size() == 1, "clicking disabled POS leaves the partial zone untouched")
+	_expect(not gs._auto_settle and st.bagged_items == 0 and st.zones.sections[0].size() == 1, "mode button disables automatic settlement without settling a partial zone")
+	await _check_real_drag_beyond_legacy_bounds(gs)
 	await _shot("counter_zone")
 	_finish(st)
+
+
+func _check_real_drag_beyond_legacy_bounds(gs: GameScreen) -> void:
+	var uid := -1
+	var start := Vector2(-1, -1)
+	for candidate in gs.state.basket.top_items():
+		uid = int(candidate["uid"])
+		start = _exposed_point(gs, uid)
+		if start.x >= 0:
+			break
+	_expect(uid > 0 and start.x >= 0, "a table snack is available for full-counter drag testing")
+	if uid <= 0 or start.x < 0:
+		return
+	var target := Vector2(820, 680)
+	await _drag(start, gs.table_view.to_global(target))
+	await get_tree().create_timer(0.10).timeout
+	var moved := gs.state.basket.get_item(uid)
+	_expect(float(moved["x"]) > BasketModel.TABLE_BOUNDS.end.x and float(moved["y"]) > 600.0, "real drag places a snack on the lower-right tabletop beyond the legacy left safe area")
+	_expect(_item_corners_inside(moved, BasketModel.DRAG_BOUNDS), "full-counter real drag keeps every rotated corner above the cashier aisle")
+	_expect(gs.state.zones.sections[0].size() == 1 and gs.state.bagged_items == 0, "full-counter free placement neither zones nor settles the snack")
 
 
 func _check_layout(gs: GameScreen) -> void:
@@ -178,14 +199,31 @@ func _check_drag_aisle_boundary(st: GameState) -> void:
 	var model := BasketModel.new()
 	model.items = [edge_item]
 	model.move_item(int(edge_item["uid"]), Vector2(300, 1999), true)
-	_expect(_item_corners_inside(model.items[0]), "large rotated snack cannot be dragged into the cashier aisle")
+	_expect(_item_corners_inside(model.items[0], BasketModel.DRAG_BOUNDS), "large rotated snack cannot be dragged into the cashier aisle")
+	model.move_item(int(edge_item["uid"]), Vector2(840, 680), true)
+	_expect(float(model.items[0]["x"]) > BasketModel.TABLE_BOUNDS.end.x, "core drag permits the newly available right-hand tabletop")
+	_expect(_item_corners_inside(model.items[0], BasketModel.DRAG_BOUNDS), "right-hand drag target keeps the whole package on the countertop")
+	model.move_item(int(edge_item["uid"]), Vector2(740, 100), true)
+	_expect(_item_corners_outside_scale(model.items[0]), "dragging onto the scale pushes the whole package outside the weighing platform")
 
 
-func _item_corners_inside(item: Dictionary) -> bool:
+func _item_corners_outside_scale(item: Dictionary) -> bool:
 	var center := Vector2(float(item["x"]), float(item["y"]))
 	var half := BasketModel.hit_size(item) * 0.5
 	var angle := deg_to_rad(float(item["rot"]))
-	var safe := BasketModel.TABLE_BOUNDS.grow(0.02)
+	for sx in [-1, 1]:
+		for sy in [-1, 1]:
+			var corner: Vector2 = center + Vector2(half.x * sx, half.y * sy).rotated(angle)
+			if BasketModel.DRAG_SCALE_BLOCK.has_point(corner):
+				return false
+	return true
+
+
+func _item_corners_inside(item: Dictionary, bounds: Rect2 = BasketModel.TABLE_BOUNDS) -> bool:
+	var center := Vector2(float(item["x"]), float(item["y"]))
+	var half := BasketModel.hit_size(item) * 0.5
+	var angle := deg_to_rad(float(item["rot"]))
+	var safe := bounds.grow(0.02)
 	for sx in [-1, 1]:
 		for sy in [-1, 1]:
 			var corner: Vector2 = center + Vector2(half.x * sx, half.y * sy).rotated(angle)

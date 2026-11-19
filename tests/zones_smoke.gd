@@ -21,13 +21,16 @@ func _run() -> void:
 	_expect(gs.zone_views.size() == 4, "four sorting zones are created")
 	var zones_inside := true
 	var zones_disjoint := true
+	var zones_upper := true
 	for i in GameScreen.ZONE_RECTS.size():
 		var rect: Rect2 = GameScreen.ZONE_RECTS[i]
-		zones_inside = zones_inside and BasketModel.TABLE_BOUNDS.encloses(rect)
+		zones_inside = zones_inside and BasketModel.DRAG_BOUNDS.encloses(rect)
+		zones_upper = zones_upper and rect.end.y <= 316.0
 		for j in range(i + 1, GameScreen.ZONE_RECTS.size()):
 			zones_disjoint = zones_disjoint and not rect.intersects(GameScreen.ZONE_RECTS[j])
-	_expect(zones_inside, "all four zones stay inside the unchanged table safe area")
+	_expect(zones_inside, "all four zones stay inside the expanded drag-safe tabletop")
 	_expect(zones_disjoint, "corner drop regions do not overlap")
+	_expect(zones_upper, "all four sorting circles move into two upper rows")
 	var ellipse_hit_ok := true
 	var corner_miss_ok := true
 	for rect in GameScreen.ZONE_RECTS:
@@ -36,7 +39,7 @@ func _run() -> void:
 			corner_miss_ok = corner_miss_ok and not GameScreen.zone_contains_point(0, corner) and not GameScreen.zone_contains_point(1, corner) and not GameScreen.zone_contains_point(2, corner) and not GameScreen.zone_contains_point(3, corner)
 	_expect(ellipse_hit_ok, "each elliptical zone accepts its center")
 	_expect(corner_miss_ok, "bounding-box corners outside every ellipse are not drop targets")
-	_expect(gs._checkout_btn.disabled, "manual POS checkout is disabled")
+	_expect(not gs._checkout_btn.disabled and gs._auto_settle, "settlement mode button starts enabled with automatic settlement on")
 	await _shot("zones_ready")
 
 	# 桌面单击只跳动，不进入区域或称重台。
@@ -87,8 +90,7 @@ func _run() -> void:
 	await _drag_available_snack(gs, snack_id, 0)
 	_expect(st.zones.queue == [0], "complete kind queues its zone exactly once")
 	_expect(st.bagged_items == 0, "arrival flight finishes before auto weighing")
-	await _click(gs._checkout_btn.global_position + gs._checkout_btn.size * 0.5)
-	_expect(st.bagged_items == 0, "clicking the disabled POS cannot force settlement")
+	_expect(gs._manual_settle_seq == 0 and gs._auto_settle, "automatic mode does not require a manual settlement command")
 	var completed := await _wait_weighed(weighed, 1, 5.0)
 	_expect(completed, "complete zone automatically weighs without a POS command")
 	_expect(weighed.size() == 1 and weighed[0]["snack"] == snack_id and weighed[0]["count"] == 2, "auto settlement contains the whole snack kind")

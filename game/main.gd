@@ -199,6 +199,8 @@ func _web_smoke_snapshot(_args: Array) -> String:
 			"live_basket_count": live_baskets, "table_items": table_items,
 			"zones": zone_snapshots, "zone_queue": st.zones.queue.duplicate(),
 			"zone_active": st.zones.active_zone, "zone_pump_running": gs._zone_pump_running,
+			"auto_settle": gs._auto_settle, "manual_settle_requested": gs._manual_settle_requested,
+			"manual_settle_seq": gs._manual_settle_seq,
 			"table_tap": {"seq": gs._table_tap_seq, "uid": gs._last_table_tap_uid},
 			"queue_ids": st.upcoming_customers(), "tools": _legacy_tool_buttons(gs, []),
 			"layout": {
@@ -210,6 +212,8 @@ func _web_smoke_snapshot(_args: Array) -> String:
 				"aisle": _rect_snapshot(gs.aisle_view.get_global_rect()),
 				"cashier": _rect_snapshot(gs._cashier_zone.get_global_rect()),
 				"table_safe": _rect_snapshot(Rect2(gs.table_view.to_global(BasketModel.TABLE_BOUNDS.position), BasketModel.TABLE_BOUNDS.size * GameScreen.BASKET_SCALE)),
+					"drag_bounds": _rect_snapshot(Rect2(gs.table_view.to_global(BasketModel.DRAG_BOUNDS.position), BasketModel.DRAG_BOUNDS.size * GameScreen.BASKET_SCALE)),
+					"drag_scale_block": _rect_snapshot(Rect2(gs.table_view.to_global(BasketModel.DRAG_SCALE_BLOCK.position), BasketModel.DRAG_SCALE_BLOCK.size * GameScreen.BASKET_SCALE)),
 			},
 			"progress": {"value": gs._bag_bar.value, "max": gs._bag_bar.max_value,
 				"text": gs._bag_label.text, "rect": _rect_snapshot(gs._bag_bar.get_global_rect()),

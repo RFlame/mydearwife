@@ -17,8 +17,8 @@ const BASKET_POUR_TIME := 1.20
 const BASKET_FIRST_SPILL := 0.12
 const DRAG_THRESHOLD := 9.0
 const ZONE_RECTS := [
-	Rect2(44, 78, 184, 176), Rect2(372, 78, 184, 176),
-	Rect2(44, 606, 184, 176), Rect2(372, 606, 184, 176),
+	Rect2(44, -48, 184, 176), Rect2(372, -48, 184, 176),
+	Rect2(44, 140, 184, 176), Rect2(372, 140, 184, 176),
 ]
 const ZONE_COLORS := [UIKit.RED, UIKit.BLUE, UIKit.GREEN, Color("B98242")]
 const ZONE_OFFSETS := [
@@ -57,7 +57,13 @@ var _coin_label: Label
 var _customer_label: Label
 var _queue_box: Control
 var _pos_detail: Label
+var _settle_hint: Label
 var _checkout_btn: Button
+var _auto_settle := true
+var _manual_settle_requested := false
+var _manual_settle_seq := 0
+var _manual_click_msec := -100000
+var _manual_click_pointer := Vector2.ZERO
 var _combo_badge: PanelContainer
 var _combo_label: Label
 var _combo_tween: Tween = null
@@ -120,6 +126,12 @@ func _input(event: InputEvent) -> void:
 		return
 	if _paused or _switching_customer or state == null or state.state != "playing":
 		return
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT and not _auto_settle:
+		if event.double_click or _is_manual_double_click(event.position):
+			_manual_click_msec = -100000
+			_request_manual_settlement()
+			get_viewport().set_input_as_handled()
+			return
 	if event is InputEventMouseMotion and _drag_uid > 0:
 		_update_table_drag(event.position)
 		get_viewport().set_input_as_handled()
@@ -142,6 +154,14 @@ func _input(event: InputEvent) -> void:
 		_drag_item_origin = Vector2(float(item["x"]), float(item["y"]))
 		_drag_offset = _drag_item_origin - table_view.to_local(event.position)
 		get_viewport().set_input_as_handled()
+
+
+func _is_manual_double_click(pointer: Vector2) -> bool:
+	var now := Time.get_ticks_msec()
+	var repeated := now - _manual_click_msec <= 500 and pointer.distance_to(_manual_click_pointer) <= 48.0
+	_manual_click_msec = now
+	_manual_click_pointer = pointer
+	return repeated
 
 
 func _zone_hit_test(pointer: Vector2) -> int:
@@ -380,16 +400,16 @@ func _build_counter() -> void:
 	_pos_detail.size = Vector2(170, 44)
 	_pos_detail.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	pos_view.add_child(_pos_detail)
-	_checkout_btn = UIKit.make_button("集齐自动结算", UIKit.RED, UIKit.CREAM, 18)
+	_checkout_btn = UIKit.make_button("自动结算：开", UIKit.RED, UIKit.CREAM, 18)
 	_checkout_btn.position = Vector2(12, 82)
 	_checkout_btn.size = Vector2(170, 40)
-	_checkout_btn.disabled = true
+	_checkout_btn.pressed.connect(_toggle_settle_mode)
 	pos_view.add_child(_checkout_btn)
 
-	var hint := UIKit.make_label("四角集齐同款\n自动称重 · 无需点结算", 18, UIKit.BROWN)
-	hint.position = Vector2(446, 650)
-	hint.size = Vector2(264, 48)
-	add_child(hint)
+	_settle_hint = UIKit.make_label("四角集齐同款\n自动称重 · 无需双击", 18, UIKit.BROWN)
+	_settle_hint.position = Vector2(446, 650)
+	_settle_hint.size = Vector2(264, 48)
+	add_child(_settle_hint)
 
 
 func _build_cashier() -> void:
@@ -581,7 +601,7 @@ func _refresh_zones() -> void:
 		if active:
 			text = "称重中…"
 		elif queued:
-			text = "已集齐 · 等待称重"
+			text = "已集齐 · 等待称重" if _auto_settle or _manual_settle_requested else "已集齐 · 双击结算"
 		elif not section.is_empty():
 			var kinds := {}
 			for item in section:
@@ -603,7 +623,33 @@ func _on_zone_queued(zone_index: int, _snack_id: String) -> void:
 			if node:
 				node.interactive = false
 	SFX.play("ding", 1.0 + float(zone_index) * 0.05)
+	if _auto_settle:
+		_pump_zone_queue()
+	_refresh_pos()
+
+
+func _toggle_settle_mode() -> void:
+	_auto_settle = not _auto_settle
+	if _auto_settle:
+		_manual_settle_requested = false
+		state.request_zone_settlement()
+		_pump_zone_queue()
+	_refresh_zones()
+	_refresh_pos()
+
+
+func _request_manual_settlement() -> void:
+	if _auto_settle or _paused or _switching_customer or state.state != "playing":
+		return
+	if not state.request_zone_settlement():
+		SFX.play("pick", 0.6)
+		UIKit.toast(self, "还没有集齐同款的区域")
+		return
+	_manual_settle_requested = true
+	_manual_settle_seq += 1
+	_refresh_zones()
 	_pump_zone_queue()
+	_refresh_pos()
 
 
 ## 单一消费者串行处理 core 队列；飞行、称重和 LED 滚动不互相抢批次。
@@ -612,10 +658,10 @@ func _pump_zone_queue() -> void:
 		return
 	_zone_pump_running = true
 	var zone_set := state.zones
-	while state.zones == zone_set and not zone_set.queue.is_empty() and not _switching_customer and state.state == "playing":
+	while state.zones == zone_set and not zone_set.queue.is_empty() and not _switching_customer and state.state == "playing" and (_auto_settle or _manual_settle_requested):
 		# 最后一次拖入也有完整抛物线，落进区域后才锁定并起飞。
 		await get_tree().create_timer(ZONE_FLIGHT_TIME + 0.05).timeout
-		if state.zones != zone_set or _switching_customer or state.state != "playing":
+		if state.zones != zone_set or _switching_customer or state.state != "playing" or not (_auto_settle or _manual_settle_requested):
 			break
 		var group := state.begin_next_zone_batch()
 		if group.is_empty():
@@ -644,6 +690,9 @@ func _pump_zone_queue() -> void:
 		# 前一批 LED 定格与价签弹出后，才允许下一批占秤。
 		await get_tree().create_timer(maxf(0.68, float(state.cfg["weigh_anim_time"]) + 0.28)).timeout
 	_zone_pump_running = false
+	_manual_settle_requested = false
+	_refresh_zones()
+	_refresh_pos()
 
 
 func _relayout_tray() -> void:
@@ -876,6 +925,8 @@ func _cancel_interaction() -> void:
 	_last_tap_uid = -1
 	_last_tap_snack = ""
 	_last_tap_msec = -100000
+	_manual_click_msec = -100000
+	_manual_click_pointer = Vector2.ZERO
 
 
 func _refresh_table_layers() -> void:
@@ -909,20 +960,24 @@ func _refresh_bag() -> void:
 
 func _refresh_pos() -> void:
 	var kinds := state.tray.unique_snacks()
-	_checkout_btn.disabled = true
+	_checkout_btn.disabled = false
+	_checkout_btn.text = "自动结算：开" if _auto_settle else "自动结算：关"
+	_settle_hint.text = "四角集齐同款\n自动称重 · 无需双击" if _auto_settle else "同款集齐到一区后\n双击屏幕任意位置称重"
 	var weight := state.tray_weight()
 	scale_view.set_live_weight(weight)
 	if kinds.is_empty():
-		_pos_detail.text = "四角集货区\n集齐同款自动结算"
-		_checkout_btn.text = "等待集齐" if state.zones.queue.is_empty() else "排队称重中"
+		if _auto_settle:
+			_pos_detail.text = "四角集货区\n集齐同款自动结算"
+		elif state.zones.active_zone >= 0:
+			_pos_detail.text = "双击批次称重中\n请稍候"
+		else:
+			_pos_detail.text = "已集齐 %d 个区域\n双击屏幕依次结算" % state.zones.queue.size() if not state.zones.queue.is_empty() else "等待同款集齐\n双击检测可结算区域"
 	elif kinds.size() > 1:
-		_pos_detail.text = "自动批次异常\n请整理区域同款"
-		_checkout_btn.text = "自动结算"
+		_pos_detail.text = "批次零食异常\n请整理区域同款"
 	else:
 		var snack_id := String(kinds[0])
 		var snack_name := String(app.db.snacks.get(snack_id, {}).get("name", snack_id))
-		_pos_detail.text = "%s × %d 件\n约 %d g · 自动称重中" % [snack_name, state.tray.entries.size(), weight]
-		_checkout_btn.text = "自动称重中"
+		_pos_detail.text = "%s × %d 件\n约 %d g · 称重中" % [snack_name, state.tray.entries.size(), weight]
 
 
 func _refresh_queue() -> void:

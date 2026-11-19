@@ -260,6 +260,15 @@ func _refresh_zone_queue() -> void:
 		zone_queued.emit(zone_index, zones.complete_snack(zone_index, basket))
 
 
+## 手动双击时重新检测四区；所有满足完整同款条件的区域按索引进入同一 FIFO。
+## 返回是否已有等待中或称重中的批次，表现层据此启动唯一的串行消费者。
+func request_zone_settlement() -> bool:
+	if state != "playing":
+		return false
+	_refresh_zone_queue()
+	return zones.active_zone >= 0 or not zones.queue.is_empty()
+
+
 ## 表现层逐批调用：队列 pop 与物品移入称重台是同一个核心事务。
 ## 完整同款可以超过旧手动台位上限，避免大量同款永远无法结算。
 func begin_next_zone_batch() -> Array:
