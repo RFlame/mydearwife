@@ -16,6 +16,8 @@
 
 保留 Godot 原版，另提供独立 ES2017 + Canvas 2D 离线小工具，不包含 WASM、PCK、WAV 或大字体。构建与校验方法见 [小工具适配说明](docs/minitool/README.md)。
 
+**以下规则仅适用于小工具版，上方 Godot 原版仍保留四区玩法：**零食可在桌面自由拖动；某一同款的全部未结算物品形成一个连通堆，且堆周边没有异款时，整堆立即飞入电子秤。多个批次无冷却连续结算，飞行、LED、价签和装袋反馈并行衔接；不再提供固定区域、区域退货或手动双击结算。
+
 ```bash
 python3 -I tools/build_minitool.py
 node tools/minitool_tests/core_test.js

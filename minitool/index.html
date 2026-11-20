@@ -19,13 +19,13 @@
     <header class="shop-header">
       <div>
         <h1>零食叮叮咚</h1>
-        <p>把同款零食分到四个集货区，称重、贴价签、装袋结账。</p>
+        <p>把同款零食自由聚堆、与异款留出空隙，自动称重、贴价签、装袋结账。</p>
       </div>
       <span class="shop-stamp" aria-hidden="true">叮咚</span>
     </header>
 
     <section id="stage" class="stage" aria-label="零食收银工作台">
-      <canvas id="game-canvas" width="720" height="1280" aria-label="拖动零食到同款集货区；区内点击可退回">
+      <canvas id="game-canvas" width="720" height="1280" aria-label="拖动零食整理桌面；同款全部聚成一堆且周边没有异款时自动称重">
         你的浏览器无法显示游戏画布，请重新打开小工具或升级客户端。
       </canvas>
       <div id="boot-panel" class="panel boot-panel">
@@ -64,7 +64,7 @@
           <button id="vibrate-button" type="button" aria-pressed="true">振动：开</button>
         </div>
         <p id="storage-status" class="storage-status"></p>
-        <p class="how-to">拖动露出零食到椭圆区；同款必须全部同区。点击区内零食可退回。手动模式双击画面结算，等待中的区域按先后串行称重。</p>
+        <p class="how-to">拖动露出的零食自由整理。同款全部聚成一堆、周边没有异款时会立即连续入秤；异款之间留出空隙即可触发。</p>
       </div>
 
       <div id="dialog-panel" class="panel dialog-panel" hidden role="dialog" aria-modal="true" aria-labelledby="dialog-title">

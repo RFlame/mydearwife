@@ -13,9 +13,6 @@
     this.preview = null;
     this.playing = false;
     this.drag = null;
-    this.pendingZone = null;
-    this.lastTapTime = 0;
-    this.lastTapPoint = null;
     this.lastFrameTime = 0;
     this.accumulator = 0;
     this.rafId = 0;
@@ -140,7 +137,7 @@
     game.customerQueue.forEach(function (id) { assets.push(self.renderer.customerFile(id)); });
     this.renderer.preload(assets).then(function () {
       self.game = game; self.preview = null; self.playing = true; self.starting = false; self.resultRecorded = false;
-      self.drag = null; self.pendingZone = null; self.lastTapTime = 0; self.lastTapPoint = null;
+      self.drag = null;
       self.el("home-panel").hidden = true; self.el("dialog-panel").hidden = true; self.el("collection-panel").hidden = true;
       startButton.disabled = false; startButton.textContent = "开始营业";
       self.processEvents(); self.lastFrameTime = 0; self.accumulator = 0; self.startLoop();
@@ -187,12 +184,11 @@
       this.renderer.handleEvent(event, this.game);
       if (event.type === "customer_started") {
         this.save.customersDiscovered[event.customerId] = true;
-      } else if (event.type === "snack_zoned") {
+      } else if (event.type === "snacks_gathered") {
         this.save.discovered[event.snack] = true;
-        this.audio.play(gameComboName(this.game.combo.combo), this.game.combo.combo);
-        if (this.save.settings.vibrate && this.game.combo.combo > 0 && this.game.combo.combo % 5 === 0) this.platform.vibrate(false);
-      } else if (event.type === "snack_returned") this.audio.play("return");
-      else if (event.type === "group_weighed") {
+        this.audio.play(gameComboName(event.combo), event.combo);
+        if (this.save.settings.vibrate && event.combo >= 5) this.platform.vibrate(false);
+      } else if (event.type === "group_weighed") {
         for (var s = 0; s < event.items.length; s += 1) this.save.discovered[event.items[s].snack] = true;
         this.audio.play("beep"); this.audio.play("print"); this.audio.play("bag");
         if (this.save.settings.vibrate) this.platform.vibrate(false);
@@ -222,7 +218,7 @@
     });
     body.appendChild(grid);
     var summary = document.createElement("p");
-    summary.textContent = completed ? "最佳连击 ×" + result.best_combo + " · 小费 " + result.tip + " · 退回 " + result.return_count + " 次" : "已结算收入保留 20%，再试一次可以先整理同款。";
+    summary.textContent = completed ? "最佳连击 ×" + result.best_combo + " · 小费 " + result.tip + " · 连续称重 " + result.total_groups + " 批" : "已结算收入保留 20%，再试一次可以先整理同款。";
     body.appendChild(summary);
     this.showDialog(completed ? "本关营业完成" : "顾客等太久了", body, completed ? "叮咚！柜台清空啦" : "别灰心，重新整理节奏");
     if (completed && this.game.levelId < this.db.levels.length) this.addDialogButton("下一关", true, function () { self.startSelectedLevel(self.game.levelId + 1); });
@@ -230,7 +226,7 @@
     this.addDialogButton("返回首页", false, function () { self.goHome(); });
   };
   App.prototype.goHome = function () {
-    this.stopLoop(); this.playing = false; this.game = null; this.drag = null; this.pendingZone = null;
+    this.stopLoop(); this.playing = false; this.game = null; this.drag = null;
     this.el("dialog-panel").hidden = true; this.el("home-panel").hidden = false; this.el("collection-panel").hidden = true;
     this.refreshHome();
     this.preview = new SDD.Game(this.db, Math.min(this.save.unlocked, this.db.levels.length), { preset: this.save.settings.preset, upgrades: this.save.upgrades });
@@ -242,7 +238,7 @@
   };
   App.prototype.pause = function () {
     if (!this.game || this.game.state !== "playing" || this.game.paused) return;
-    this.game.paused = true; this.drag = null; this.pendingZone = null; this.audio.suspend();
+    this.game.paused = true; this.drag = null; this.audio.suspend();
     var self = this;
     var body = document.createElement("p"); body.textContent = "计时、撒落与称重队列都已暂停。";
     this.showDialog("暂停营业", body, "喝口茶，慢慢来");
@@ -272,13 +268,12 @@
   App.prototype.showUpgrades = function () {
     var self = this;
     var body = document.createElement("div");
-    var names = ["tray", "scale", "magnet"];
+    var names = ["scale", "magnet"];
     names.forEach(function (name) {
       var definition = self.db.upgrades[name]; var level = self.save.upgrades[name];
       var row = document.createElement("section"); row.className = "upgrade-row";
       var heading = document.createElement("h3"); heading.textContent = definition.name + " · Lv." + level;
       var desc = document.createElement("p"); desc.textContent = definition.desc;
-      if (name === "tray") desc.textContent += "；四区完整批次不占用旧格数";
       row.appendChild(heading); row.appendChild(desc);
       var button = document.createElement("button"); button.type = "button";
       button.textContent = level >= definition.max_level ? "已满级" : "升级 · " + definition.costs[level - 1] + " 金币";
@@ -337,30 +332,17 @@
     var p = this.renderer.eventPoint(event);
     if (this.pointInRect(p, this.renderer.pauseRect)) { this.pause(); return; }
     if (!this.game.canInteract()) return;
-    if (this.pointInRect(p, this.renderer.modeRect)) {
-      this.game.setAuto(!this.game.auto); this.toast(this.game.auto ? "自动结算已开启" : "手动模式：双击画面结算"); return;
-    }
     if (this.pointInRect(p, this.renderer.magnetRect)) {
-      if (!this.game.useMagnet()) this.toast(this.game.magnetCharges <= 0 ? "本顾客吸附次数已用完" : "暂时没有可吸附到同区的零食");
+      if (!this.game.useMagnet()) this.toast(this.game.magnetCharges <= 0 ? "本顾客吸附次数已用完" : "暂时没有可聚拢的同款零食");
       return;
     }
-    var now = event.timeStamp || 0;
-    if (!this.game.auto && this.lastTapTime && now - this.lastTapTime <= 500 && this.lastTapPoint &&
-        Math.hypot(p.x - this.lastTapPoint.x, p.y - this.lastTapPoint.y) <= 48) {
-      this.game.requestManual(); this.lastTapTime = 0; this.lastTapPoint = null; this.drag = null; this.pendingZone = null; return;
-    }
-    this.lastTapTime = now; this.lastTapPoint = p;
     var local = this.renderer.globalToLocal(p);
-    var zoneItem = this.renderer.hitZoneItem(this.game, local);
-    if (zoneItem) {
-      this.pendingZone = { zone: zoneItem.zone, uid: zoneItem.uid, pointerId: event.pointerId };
-      this.capturePointer(event); return;
-    }
     var uid = this.game.basket.hitTestAssisted(local, 14);
     if (uid <= 0 || !this.game.basket.canPick(uid)) return;
+    this.game.revealItem(uid);
     var item = this.game.basket.byUid(uid);
-    this.drag = { uid: uid, pointerId: event.pointerId, start: p, origin: { x: item.x, y: item.y },
-      offset: { x: item.x - local.x, y: item.y - local.y }, dragging: false, zone: -1 };
+    this.drag = { uid: uid, pointerId: event.pointerId, start: p,
+      offset: { x: item.x - local.x, y: item.y - local.y }, dragging: false };
     this.capturePointer(event);
   };
   App.prototype.capturePointer = function (event) {
@@ -376,31 +358,28 @@
     if (!this.drag.dragging) return;
     var local = this.renderer.globalToLocal(p);
     this.game.moveItem(this.drag.uid, { x: local.x + this.drag.offset.x, y: local.y + this.drag.offset.y }, true);
-    var item = this.game.basket.byUid(this.drag.uid);
-    this.drag.zone = SDD.zoneAt(item);
   };
   App.prototype.pointerUp = function (event) {
     if (!this.game || !this.playing) return;
     event.preventDefault();
-    if (this.pendingZone && this.pendingZone.pointerId === event.pointerId) {
-      this.game.returnZoneItem(this.pendingZone.zone, this.pendingZone.uid); this.pendingZone = null; return;
-    }
     if (!this.drag || this.drag.pointerId !== event.pointerId) return;
     var drag = this.drag;
+    this.drag = null;
     if (this.game.canInteract() && drag.dragging) {
       var p = this.renderer.eventPoint(event); var local = this.renderer.globalToLocal(p);
-      this.game.moveItem(drag.uid, { x: local.x + drag.offset.x, y: local.y + drag.offset.y }, true);
-      var item = this.game.basket.byUid(drag.uid); var zoneIndex = SDD.zoneAt(item);
-      if (zoneIndex >= 0) this.game.placeInZone(drag.uid, zoneIndex, drag.origin);
+      this.game.finishMove(drag.uid, { x: local.x + drag.offset.x, y: local.y + drag.offset.y }, true);
     } else if (this.game.canInteract()) {
-      this.renderer.tapBounces[drag.uid] = 0.22;
+      this.renderer.tapBounces[drag.uid] = 0.14;
       this.game.idleTime = 0;
     }
-    this.drag = null;
   };
   App.prototype.pointerCancel = function (event) {
-    if (this.drag && this.drag.pointerId === event.pointerId) this.drag = null;
-    if (this.pendingZone && this.pendingZone.pointerId === event.pointerId) this.pendingZone = null;
+    if (!this.drag || this.drag.pointerId !== event.pointerId) return;
+    var drag = this.drag;
+    this.drag = null;
+    if (!drag.dragging || !this.game || !this.game.canInteract()) return;
+    var item = this.game.basket.byUid(drag.uid);
+    if (item && !item.picked) this.game.finishMove(drag.uid, { x: item.x, y: item.y }, false);
   };
 
   var app = new App();

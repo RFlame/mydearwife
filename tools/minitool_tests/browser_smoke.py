@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Development-only browser smoke for the mini-tool; not container acceptance."""
+"""Development-only browser smoke for free clustering; not container acceptance."""
 
 import asyncio
 import base64
@@ -131,79 +131,70 @@ async def main():
             async def click_logical(x, y):
                 await click_css(*css_point(x, y))
 
-            async def double_logical(x, y):
-                await click_logical(x, y)
-                await asyncio.sleep(0.08)
-                await click_logical(x, y)
-
-            async def drag_logical(x1, y1, x2, y2):
-                start = css_point(x1, y1)
-                end = css_point(x2, y2)
-                await mouse("mouseMoved", *start)
-                await mouse("mousePressed", *start)
-                for step in range(1, 8):
-                    x = start[0] + (end[0] - start[0]) * step / 7
-                    y = start[1] + (end[1] - start[1]) * step / 7
+            async def drag_points(start, end, settle=0.02):
+                start_css = css_point(*start)
+                end_css = css_point(*end)
+                await mouse("mouseMoved", *start_css)
+                await mouse("mousePressed", *start_css)
+                for step in range(1, 6):
+                    x = start_css[0] + (end_css[0] - start_css[0]) * step / 5
+                    y = start_css[1] + (end_css[1] - start_css[1]) * step / 5
                     await mouse("mouseMoved", x, y)
-                    await asyncio.sleep(0.015)
-                await mouse("mouseReleased", *end)
-                await asyncio.sleep(0.12)
+                await mouse("mouseReleased", *end_css)
+                if settle:
+                    await asyncio.sleep(settle)
+
+            snapshot_js = """(function(){var g=SDD.app.game,r=SDD.app.renderer;return {state:g.state,phase:g.phase,customer:g.customerIndex,bagged:g.baggedItems,groups:g.baggedGroups,remaining:g.basket.remaining(),active:g.activeBatch.length?g.activeBatch[0].snack:null,queue:g.queue.map(function(b){return b.snack;}),scale:SDD.TABLE_SCALE,tableY:SDD.TABLE_Y,tags:r.priceTags.length,items:g.basket.items.filter(function(i){return !i.picked && g.basket.canPick(i.uid);}).map(function(i){var p=g.basket.exposedPoint(i.uid),e=r.localToGlobal(p),c=r.localToGlobal(i);return {uid:i.uid,snack:i.snack,x:e.x,y:e.y,cx:c.x,cy:c.y};})};}())"""
+
+            async def drag_item(item, target, scale=0.78, table_y=400, settle=0.02):
+                target_global = (target[0] * scale, table_y + target[1] * scale)
+                end = (target_global[0] + item["x"] - item["cx"], target_global[1] + item["y"] - item["cy"])
+                await drag_points((item["x"], item["y"]), end, settle)
 
             start = await cdp.evaluate("JSON.stringify(document.getElementById('start-button').getBoundingClientRect())")
             start_rect = json.loads(start)
             await click_css(start_rect["left"] + start_rect["width"] / 2, start_rect["top"] + start_rect["height"] / 2)
             await cdp.wait("SDD.app.game && SDD.app.game.phase === 'pouring'")
-            await cdp.wait("SDD.app.game.pourElapsed > 1.45", 5)
+            await cdp.wait("SDD.app.game.pourElapsed > 0.65", 5)
             await cdp.shot("02-pour.png")
             await cdp.wait("SDD.app.game.phase === 'playing'", 10)
             assert await cdp.evaluate("SDD.app.game.totalItems") == 8
-
-            await click_logical(577, 240)
-            assert await cdp.evaluate("SDD.app.game.auto") is False
-
-            snapshot_js = """(function(){var g=SDD.app.game,r=SDD.app.renderer;return {state:g.state,phase:g.phase,customer:g.customerIndex,bagged:g.baggedItems,groups:g.baggedGroups,returned:g.returnCount,auto:g.auto,items:g.basket.items.filter(function(i){return !i.picked && g.basket.canPick(i.uid);}).map(function(i){var p=g.basket.exposedPoint(i.uid);return {uid:i.uid,snack:i.snack,x:r.localToGlobal(p).x,y:r.localToGlobal(p).y};}),zones:g.sections.map(function(s){return s.map(function(i){return {uid:i.uid,snack:i.snack};});})};}())"""
-            first = await cdp.evaluate(snapshot_js)
-            pair = None
-            for a in first["items"]:
-                for b in first["items"]:
-                    if a["uid"] != b["uid"] and a["snack"] != b["snack"]:
-                        pair = (a, b)
-                        break
-                if pair:
-                    break
-            assert pair, "level seed should expose two snack kinds"
-            snack_a, snack_b = pair[0]["snack"], pair[1]["snack"]
-            zone_for = {snack_a: 0, snack_b: 1}
-            await drag_logical(pair[0]["x"], pair[0]["y"], 106, 431)
-            latest = await cdp.evaluate(snapshot_js)
-            second = next(item for item in latest["items"] if item["uid"] == pair[1]["uid"])
-            await drag_logical(second["x"], second["y"], 106, 431)
-            mixed = await cdp.evaluate(snapshot_js)
-            assert len({item["snack"] for item in mixed["zones"][0]}) == 2
-            await cdp.shot("03-mixed.png")
-            await click_logical(106 + -26 * 0.78, 431 + -18 * 0.78)
-            await cdp.wait("SDD.app.game.returnCount === 1")
             assert await cdp.evaluate("SDD.app.game.baggedGroups") == 0
 
-            async def place_remaining():
-                for _ in range(20):
-                    state = await cdp.evaluate(snapshot_js)
-                    if state["phase"] != "playing" or state["state"] != "playing":
-                        return state
-                    if not state["items"]:
-                        return state
-                    item = state["items"][0]
-                    if item["snack"] not in zone_for:
-                        zone_for[item["snack"]] = len(zone_for)
-                    zone = zone_for[item["snack"]]
-                    centers = [(106, 431), (362, 431), (106, 578), (362, 578)]
-                    await drag_logical(item["x"], item["y"], *centers[zone])
-                raise AssertionError("too many drags")
+            first = await cdp.evaluate(snapshot_js)
+            by_snack = {}
+            for item in first["items"]:
+                by_snack.setdefault(item["snack"], []).append(item)
+            assert len(by_snack) == 2 and all(len(items) == 2 for items in by_snack.values())
+            snack_a, snack_b = list(by_snack)
+            same = by_snack[snack_a]
+            blocker, other = by_snack[snack_b]
+            scale, table_y = first["scale"], first["tableY"]
 
-            await place_remaining()
-            assert await cdp.evaluate("SDD.app.game.queue.length") == 2
-            await double_logical(360, 900)
+            # Put one foreign package below the future pair, then complete the pair around it.
+            await drag_item(blocker, (150, 300), scale, table_y)
+            await drag_item(same[0], (130, 170), scale, table_y)
+            await drag_item(same[1], (160, 170), scale, table_y)
+            blocked = await cdp.evaluate(snapshot_js)
+            assert blocked["groups"] == 0 and blocked["active"] is None and blocked["queue"] == []
+            assert blocked["remaining"] == 4
+            await cdp.shot("03-foreign-blocked.png")
+
+            # Moving the blocker away releases the complete pair. Immediately use the real
+            # magnet button to queue the other kind while the first pair is still flying.
+            current = await cdp.evaluate(snapshot_js)
+            moved_blocker = next(item for item in current["items"] if item["uid"] == blocker["uid"])
+            await drag_item(moved_blocker, (350, 600), scale, table_y, settle=0)
+            await click_logical(586, 45)
+            continuous = await cdp.evaluate(snapshot_js)
+            assert continuous["active"] == snack_a, continuous
+            assert continuous["queue"] == [snack_b], continuous
+            await cdp.shot("04-continuous-batches.png")
             await cdp.wait("SDD.app.game.customerIndex === 2 && SDD.app.game.phase === 'pouring'", 15)
+            assert await cdp.evaluate("SDD.app.game.baggedGroups") == 2
+            assert await cdp.evaluate("SDD.app.renderer.priceTags.length") >= 1
+            await cdp.shot("05-next-customer-tags.png")
+
             elapsed = await cdp.evaluate("SDD.app.game.elapsed")
             await cdp.evaluate("Object.defineProperty(document,'hidden',{configurable:true,get:function(){return true;}});document.dispatchEvent(new Event('visibilitychange'));")
             await asyncio.sleep(0.45)
@@ -211,23 +202,48 @@ async def main():
             assert abs(await cdp.evaluate("SDD.app.game.elapsed") - elapsed) < 0.001
             await cdp.evaluate("Object.defineProperty(document,'hidden',{configurable:true,get:function(){return false;}});document.dispatchEvent(new Event('visibilitychange'));")
             await cdp.wait("SDD.app.game.phase === 'playing'", 10)
+
+            async def place_remaining():
+                targets = [(110, 150), (410, 150), (130, 580), (420, 580), (110, 710), (430, 710)]
+                target_for = {}
+                for _ in range(30):
+                    state = await cdp.evaluate(snapshot_js)
+                    if state["phase"] != "playing" or state["state"] != "playing":
+                        return state
+                    if not state["items"]:
+                        if state["remaining"] == 0:
+                            await cdp.wait("SDD.app.game.state === 'complete' || SDD.app.game.phase === 'pouring'", 15)
+                            return await cdp.evaluate(snapshot_js)
+                        await asyncio.sleep(0.05)
+                        continue
+                    item = state["items"][0]
+                    if item["snack"] not in target_for:
+                        target_for[item["snack"]] = targets[len(target_for)]
+                    same_kind = [candidate for candidate in state["items"] if candidate["snack"] == item["snack"]]
+                    base = target_for[item["snack"]]
+                    for index, candidate in enumerate(same_kind):
+                        latest = await cdp.evaluate(snapshot_js)
+                        current_item = next((entry for entry in latest["items"] if entry["uid"] == candidate["uid"]), None)
+                        if current_item:
+                            await drag_item(current_item, (base[0] + index * 28, base[1]), latest["scale"], latest["tableY"])
+                raise AssertionError("too many drags or inaccessible packages")
+
             await place_remaining()
-            await double_logical(360, 900)
             await cdp.wait("SDD.app.game.state === 'complete'", 15)
             assert await cdp.evaluate("SDD.app.game.baggedItems") == 8
             assert await cdp.evaluate("SDD.app.game.result.total_groups") == 4
-            await cdp.shot("04-complete.png")
+            await cdp.shot("06-complete.png")
 
             await cdp.call("Emulation.setScriptExecutionDisabled", {"value": True})
             await cdp.call("Page.navigate", {"url": "http://127.0.0.1:%d/" % http_port})
             await asyncio.sleep(0.5)
             static_text = await cdp.evaluate("document.getElementById('boot-title').textContent + '|' + document.querySelector('h1').textContent")
             assert static_text == "柜台准备中|零食叮叮咚"
-            await cdp.shot("05-static-first-screen.png")
+            await cdp.shot("07-static-first-screen.png")
             assert not cdp.errors, cdp.errors
             print(json.dumps({
                 "result": "PASS",
-                "scope": "real browser start, pour lock, drag, mixed return, manual FIFO, two customers, hidden/resume, static first screen",
+                "scope": "real mouse free clustering, foreign blocking/release, immediate next batch, two customers, hidden/resume, static first screen",
                 "bagged_items": 8,
                 "console_errors": len(cdp.errors),
                 "screenshots": str(OUT),

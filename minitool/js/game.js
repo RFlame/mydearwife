@@ -1,8 +1,14 @@
 (function () {
   "use strict";
   var SDD = window.SDD = window.SDD || {};
-  var ZONE_FLIGHT_TIME = 0.26;
-  var BATCH_FLIGHT_TIME = 0.34;
+  var BATCH_FLIGHT_TIME = 0.18;
+  var BATCH_STAGGER_MAX = 0.08;
+
+  function pourTiming(count) {
+    var stagger = Math.min(0.12, 0.55 / Math.max(1, count - 1));
+    return { entry: 0.30, first: 0.38, flight: 0.38, stagger: stagger, exit: 0.12,
+      duration: 0.38 + stagger * Math.max(0, count - 1) + 0.38 + 0.12 };
+  }
 
   function DataDB(raw) {
     this.raw = raw;
@@ -26,11 +32,9 @@
     Object.keys(source).forEach(function (key) { cfg[key] = source[key]; });
     var preset = this.difficulty.presets[presetName] || this.difficulty.presets.standard;
     var owned = upgradesOwned || { tray: 1, scale: 1, magnet: 1 };
-    var trayLevel = Math.max(1, owned.tray || 1);
     var scaleLevel = Math.max(1, owned.scale || 1);
     var magnetLevel = Math.max(1, owned.magnet || 1);
     cfg.preset = presetName;
-    cfg.tray_slots = Math.min(9, preset.tray_slots + trayLevel - 1);
     cfg.patience = (cfg.patience || 0) * preset.patience_scale;
     cfg.combo_window_sec = preset.combo_window_sec;
     cfg.magnet_charges = preset.magnet_charges + magnetLevel - 1;
@@ -96,7 +100,6 @@
     this.db = db;
     this.levelId = levelId;
     this.cfg = db.runtimeConfig(levelId, options.preset || "standard", options.upgrades);
-    this.auto = options.auto !== false;
     this.seed = options.seed || levelId * 10007 + 20261119;
     this.layoutRng = new SDD.RNG(this.seed);
     this.customerRng = new SDD.RNG(this.seed + 97);
@@ -153,14 +156,12 @@
   Game.prototype.nextCustomer = function () {
     this.customerIndex += 1;
     this.basket = SDD.generateBasket(this.cfg, this.db.snacks, this.layoutRng);
-    this.sections = [[], [], [], []];
     this.queue = [];
-    this.activeZone = -1;
     this.activeBatch = [];
+    this.activeCombo = 0;
     this.batchPhase = "idle";
     this.batchTimer = 0;
-    this.queueDelay = 0;
-    this.manualRequested = false;
+    this.batchDuration = 0;
     this.magnetCharges = this.cfg.magnet_charges;
     if (this.customerIndex === 1) this.totalItems = this.basket.remaining() * this.customersTotal;
     var profile = this.currentCustomer();
@@ -173,8 +174,8 @@
     for (var seen = 0; seen < this.basket.items.length; seen += 1) this.seenSnacks[this.basket.items[seen].snack] = true;
     this.phase = "pouring";
     this.pourElapsed = 0;
-    var stagger = Math.min(0.30, 0.98 / Math.max(1, this.basket.items.length - 1));
-    this.pourDuration = 1.2 + 0.12 + stagger * Math.max(0, this.basket.items.length - 1) + 0.58;
+    this.pourTiming = pourTiming(this.basket.items.length);
+    this.pourDuration = this.pourTiming.duration;
     this.emit("customer_started", { index: this.customerIndex, customerId: this.currentCustomerId(), items: this.basket.items, duration: this.pourDuration });
     this.emit("pour_started", { index: this.customerIndex, duration: this.pourDuration });
   };
@@ -187,6 +188,7 @@
       if (this.pourElapsed >= this.pourDuration) {
         this.phase = "playing";
         this.emit("pour_finished", { index: this.customerIndex });
+        this.scanClusters();
       }
       return;
     }
@@ -204,160 +206,103 @@
     }
     this.updateBatch(delta);
   };
-  Game.prototype.zoneForUid = function (uid) {
-    for (var z = 0; z < this.sections.length; z += 1) {
-      for (var i = 0; i < this.sections[z].length; i += 1) if (this.sections[z][i].uid === uid) return z;
-    }
-    return -1;
-  };
-  Game.prototype.isZoneLocked = function (zoneIndex) { return this.activeZone === zoneIndex || this.queue.indexOf(zoneIndex) >= 0; };
-  Game.prototype.completeSnack = function (zoneIndex) {
-    if (zoneIndex < 0 || zoneIndex >= 4 || !this.sections[zoneIndex].length) return "";
-    var snackId = this.sections[zoneIndex][0].snack;
-    for (var i = 0; i < this.sections[zoneIndex].length; i += 1) if (this.sections[zoneIndex][i].snack !== snackId) return "";
-    for (var j = 0; j < this.basket.items.length; j += 1) {
-      var item = this.basket.items[j];
-      if (item.snack !== snackId) continue;
-      if (!item.picked || this.zoneForUid(item.uid) !== zoneIndex) return "";
-    }
-    return snackId;
-  };
   Game.prototype.snackTotal = function (snackId) {
     var total = 0;
     for (var i = 0; i < this.basket.items.length; i += 1) if (this.basket.items[i].snack === snackId) total += 1;
     return total;
   };
-  Game.prototype.refreshQueue = function () {
-    for (var z = 0; z < 4; z += 1) {
-      if (this.isZoneLocked(z)) continue;
-      var snackId = this.completeSnack(z);
-      if (!snackId) continue;
-      this.queue.push(z);
-      this.emit("zone_queued", { zone: z, snack: snackId });
-    }
-    if (this.queue.length && this.batchPhase === "idle" && (this.auto || this.manualRequested) && this.queueDelay <= 0) {
-      this.queueDelay = ZONE_FLIGHT_TIME + 0.05;
-    }
-  };
-  Game.prototype.placeInZone = function (uid, zoneIndex, origin) {
-    if (!this.canInteract() || zoneIndex < 0 || zoneIndex >= 4 || this.isZoneLocked(zoneIndex)) return false;
-    var item = this.basket.byUid(uid);
-    if (!item || !this.basket.canPick(uid)) return false;
-    var returnPoint = origin || { x: item.x, y: item.y };
-    if (!this.basket.pick(uid)) return false;
-    item.returnX = returnPoint.x; item.returnY = returnPoint.y;
-    this.sections[zoneIndex].push(item);
-    this.combo.register();
-    this.idleTime = 0;
-    this.emit("snack_zoned", { uid: uid, zone: zoneIndex, snack: item.snack, blind: item.blind });
-    this.emit("zone_changed", { zone: zoneIndex });
-    this.refreshQueue();
-    return true;
-  };
-  Game.prototype.returnZoneItem = function (zoneIndex, uid) {
-    if (!this.canInteract() || this.isZoneLocked(zoneIndex)) return false;
-    var section = this.sections[zoneIndex];
-    for (var i = 0; i < section.length; i += 1) {
-      if (section[i].uid !== uid) continue;
-      var item = section.splice(i, 1)[0];
-      this.basket.unpick(uid);
-      this.basket.bringToFront(uid);
-      this.basket.moveItem(uid, { x: item.returnX, y: item.returnY }, false);
-      this.returnCount += 1;
-      this.combo.reset();
+  Game.prototype.scanClusters = function () {
+    if (!this.canInteract()) return 0;
+    var ready = SDD.findReadyClusters(this.basket.items);
+    for (var r = 0; r < ready.length; r += 1) {
+      var group = ready[r];
+      for (var i = 0; i < group.items.length; i += 1) {
+        group.items[i].picked = true;
+        group.items[i].revealed = true;
+        this.combo.register();
+      }
+      this.queue.push({ snack: group.snack, items: group.items, combo: this.combo.combo });
       this.idleTime = 0;
-      this.emit("snack_returned", { uid: uid, zone: zoneIndex, snack: item.snack });
-      this.emit("zone_changed", { zone: zoneIndex });
-      this.refreshQueue();
-      return true;
+      this.emit("snacks_gathered", { snack: group.snack, items: group.items, count: group.items.length, combo: this.combo.combo });
     }
-    return false;
+    if (this.batchPhase === "idle") this.beginNextBatch();
+    return ready.length;
+  };
+  Game.prototype.revealItem = function (uid) {
+    if (!this.canInteract()) return false;
+    var item = this.basket.byUid(uid);
+    if (!item || item.picked) return false;
+    item.revealed = true;
+    return true;
   };
   Game.prototype.moveItem = function (uid, p, bringToFront) {
     if (!this.canInteract()) return false;
     var moved = this.basket.moveItem(uid, p, bringToFront);
-    if (moved) this.idleTime = 0;
+    if (moved) {
+      this.basket.byUid(uid).revealed = true;
+      this.idleTime = 0;
+    }
     return moved;
   };
-  Game.prototype.setAuto = function (enabled) {
-    this.auto = !!enabled;
-    if (this.auto) {
-      this.manualRequested = false;
-      this.refreshQueue();
-      if (this.queue.length && this.batchPhase === "idle") this.queueDelay = ZONE_FLIGHT_TIME + 0.05;
-    }
-  };
-  Game.prototype.requestManual = function () {
-    if (!this.canInteract()) return false;
-    this.refreshQueue();
-    if (this.activeZone < 0 && !this.queue.length) return false;
-    if (!this.manualRequested && this.batchPhase === "idle") this.queueDelay = ZONE_FLIGHT_TIME + 0.05;
-    this.manualRequested = true;
-    this.emit("manual_requested", {});
-    return true;
+  Game.prototype.finishMove = function (uid, p, bringToFront) {
+    var moved = this.moveItem(uid, p, bringToFront);
+    if (moved) this.scanClusters();
+    return moved;
   };
   Game.prototype.beginNextBatch = function () {
     if (this.batchPhase !== "idle" || !this.queue.length) return null;
-    var zoneIndex = this.queue.shift();
-    var group = this.sections[zoneIndex].slice();
-    this.sections[zoneIndex] = [];
-    this.activeZone = zoneIndex;
-    this.activeBatch = group;
+    var batch = this.queue.shift();
+    this.activeBatch = batch.items;
+    this.activeCombo = batch.combo;
     this.batchPhase = "flying";
-    var stagger = Math.min(0.035, 0.12 / Math.max(1, group.length - 1));
-    this.batchTimer = BATCH_FLIGHT_TIME + stagger * Math.max(0, group.length - 1) + 0.05;
-    this.emit("batch_started", { zone: zoneIndex, items: group, duration: this.batchTimer });
-    return group;
+    var stagger = Math.min(0.025, BATCH_STAGGER_MAX / Math.max(1, batch.items.length - 1));
+    this.batchDuration = BATCH_FLIGHT_TIME + stagger * Math.max(0, batch.items.length - 1);
+    this.batchTimer = this.batchDuration;
+    this.emit("batch_started", { snack: batch.snack, items: batch.items, duration: this.batchDuration,
+      flightTime: BATCH_FLIGHT_TIME, stagger: stagger, combo: batch.combo });
+    return batch.items;
   };
   Game.prototype.settleActiveBatch = function () {
-    if (this.activeZone < 0 || !this.activeBatch.length) return false;
+    if (this.batchPhase !== "flying" || !this.activeBatch.length) return false;
     var group = this.activeBatch.slice();
     var snackId = group[0].snack;
     for (var i = 0; i < group.length; i += 1) if (group[i].snack !== snackId) return false;
     var weight = 0;
     for (var w = 0; w < group.length; w += 1) weight += group[w].weight;
     weight = Math.round(weight * this.weightRng.range(0.95, 1.05));
-    var price = Score.batchPrice(this.levelId, group.length, this.combo.combo);
+    var price = Score.batchPrice(this.levelId, group.length, this.activeCombo);
     this.coinsEarned += price.total;
     this.baggedItems += group.length;
     this.baggedGroups += 1;
-    var zoneIndex = this.activeZone;
-    this.activeZone = -1;
     this.activeBatch = [];
-    this.batchPhase = "cooldown";
-    this.batchTimer = Math.max(0.68, this.cfg.weigh_anim_time + 0.28);
-    this.emit("group_weighed", { zone: zoneIndex, items: group, snack: snackId, weight: weight, price: price });
+    this.activeCombo = 0;
+    this.batchPhase = "idle";
+    this.batchTimer = 0;
+    this.batchDuration = 0;
+    this.emit("group_weighed", { items: group, snack: snackId, weight: weight, price: price });
     this.checkEnd();
+    if (this.state === "playing" && this.phase === "playing") this.beginNextBatch();
     return true;
   };
   Game.prototype.updateBatch = function (delta) {
-    if (this.batchPhase === "flying") {
-      this.batchTimer -= delta;
-      if (this.batchTimer <= 0) this.settleActiveBatch();
-      return;
-    }
-    if (this.batchPhase === "cooldown") {
-      this.batchTimer -= delta;
-      if (this.batchTimer <= 0) {
-        this.batchPhase = "idle";
-        this.batchTimer = 0;
-        if (this.queue.length && (this.auto || this.manualRequested)) this.queueDelay = ZONE_FLIGHT_TIME + 0.05;
-        else this.manualRequested = false;
+    var remaining = delta;
+    if (this.batchPhase === "idle") this.beginNextBatch();
+    while (this.batchPhase === "flying" && remaining > 0) {
+      if (this.batchTimer > remaining) {
+        this.batchTimer -= remaining;
+        return;
       }
-      return;
+      remaining -= this.batchTimer;
+      this.batchTimer = 0;
+      this.settleActiveBatch();
+      if (this.state !== "playing" || this.phase !== "playing") return;
     }
-    if (!this.queue.length) { this.manualRequested = false; return; }
-    if (!this.auto && !this.manualRequested) return;
-    if (this.queueDelay > 0) { this.queueDelay -= delta; return; }
-    this.beginNextBatch();
   };
-  Game.prototype.zonesClear = function () {
-    if (this.activeZone >= 0 || this.queue.length) return false;
-    for (var i = 0; i < 4; i += 1) if (this.sections[i].length) return false;
-    return true;
+  Game.prototype.batchesClear = function () {
+    return !this.activeBatch.length && !this.queue.length;
   };
   Game.prototype.checkEnd = function () {
-    if (this.state !== "playing" || this.basket.remaining() > 0 || !this.zonesClear()) return false;
+    if (this.state !== "playing" || this.basket.remaining() > 0 || !this.batchesClear()) return false;
     if (this.customerIndex >= this.customersTotal) {
       this.state = "complete";
       this.phase = "done";
@@ -376,31 +321,23 @@
       patience_ratio: this.patienceRatio(), had_tray_full: this.hadTrayFull, bagged_items: this.baggedItems,
       bagged_groups: this.baggedGroups, return_count: this.returnCount });
   };
-  Game.prototype.chooseMagnetZone = function (snackId) {
-    var empty = -1;
-    for (var z = 0; z < 4; z += 1) {
-      if (this.isZoneLocked(z)) continue;
-      if (!this.sections[z].length && empty < 0) empty = z;
-      if (this.sections[z].length && this.sections[z][0].snack === snackId) return z;
-    }
-    return empty;
-  };
   Game.prototype.useMagnet = function () {
     if (!this.canInteract() || this.magnetCharges <= 0) return false;
     var sorted = this.basket.sorted();
     for (var i = sorted.length - 1; i >= 0; i -= 1) {
       var item = sorted[i];
       if (item.picked || !this.basket.canPick(item.uid)) continue;
-      var zoneIndex = this.chooseMagnetZone(item.snack);
-      if (zoneIndex < 0) continue;
       var matching = this.basket.accessibleSame(item.snack);
       var moved = 0;
       for (var m = 0; m < matching.length; m += 1) {
-        if (this.placeInZone(matching[m].uid, zoneIndex, { x: matching[m].x, y: matching[m].y })) moved += 1;
+        var offset = SDD.CLUSTER_OFFSETS[m % SDD.CLUSTER_OFFSETS.length];
+        var ring = Math.floor(m / SDD.CLUSTER_OFFSETS.length);
+        if (this.moveItem(matching[m].uid, { x: item.x + offset.x + ring * 8, y: item.y + offset.y + ring * 8 }, true)) moved += 1;
       }
       if (moved > 0) {
         this.magnetCharges -= 1;
-        this.emit("magnet_used", { snack: item.snack, zone: zoneIndex, count: moved, charges: this.magnetCharges });
+        this.emit("magnet_used", { snack: item.snack, count: moved, charges: this.magnetCharges });
+        this.scanClusters();
         return true;
       }
     }
@@ -466,4 +403,5 @@
   SDD.sanitizeSave = sanitizeSave;
   SDD.recordResult = recordResult;
   SDD.buyUpgrade = buyUpgrade;
+  SDD.pourTiming = pourTiming;
 }());

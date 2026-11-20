@@ -3,7 +3,6 @@
   var SDD = window.SDD = window.SDD || {};
   var TABLE_SCALE = 0.78;
   var TABLE_Y = 400;
-  var COLORS = ["#c94f3d", "#527c89", "#5e7d5b", "#b98242"];
 
   function Renderer(canvas, db) {
     this.canvas = canvas;
@@ -11,21 +10,21 @@
     this.db = db;
     this.images = {};
     this.imagePromises = {};
-    this.displayBatch = null;
-    this.flightDuration = 0;
+    this.flight = null;
+    this.scaleBatch = null;
+    this.scaleBatchTimer = 0;
     this.ledValue = 0;
+    this.ledStart = 0;
     this.ledTarget = 0;
     this.ledElapsed = 0;
     this.ledDuration = 0.4;
-    this.priceTag = null;
-    this.priceTagTimer = 0;
+    this.priceTags = [];
     this.bagPulse = 0;
     this.comboPulse = 0;
     this.floaters = [];
     this.tapBounces = {};
     this.pauseRect = { x: 642, y: 16, w: 62, h: 58 };
     this.magnetRect = { x: 542, y: 16, w: 88, h: 58 };
-    this.modeRect = { x: 492, y: 220, w: 170, h: 40 };
   }
   Renderer.prototype.load = function (fileName) {
     if (this.imagePromises[fileName]) return this.imagePromises[fileName];
@@ -69,37 +68,45 @@
   };
   Renderer.prototype.handleEvent = function (event, game) {
     if (event.type === "batch_started") {
-      this.displayBatch = event.items.slice();
-      this.flightDuration = event.duration;
+      this.flight = { items: event.items.slice(), starts: event.items.map(function (item) { return { x: item.x, y: item.y }; }),
+        elapsed: 0, duration: event.duration, flightTime: event.flightTime, stagger: event.stagger };
       var theoretical = 0;
       event.items.forEach(function (item) { theoretical += item.weight; });
-      this.ledValue = theoretical; this.ledTarget = theoretical;
+      this.ledStart = this.ledValue; this.ledTarget = theoretical; this.ledElapsed = 0; this.ledDuration = event.duration;
     } else if (event.type === "group_weighed") {
-      this.displayBatch = event.items.slice();
-      this.ledValue = 0; this.ledTarget = event.weight; this.ledElapsed = 0;
+      this.flight = null;
+      this.scaleBatch = event.items.slice(); this.scaleBatchTimer = 0.16;
+      this.ledStart = this.ledValue; this.ledTarget = event.weight; this.ledElapsed = 0;
       this.ledDuration = game.cfg.weigh_anim_time;
-      this.priceTag = { weight: event.weight, price: event.price.total };
-      this.priceTagTimer = 1.05;
-      this.bagPulse = 0.7;
-      this.floaters.push({ text: "+" + event.price.total + " 金币", x: 574, y: 660, life: 1.0, color: "#a83a2c" });
-    } else if (event.type === "snack_zoned") {
-      if (game.combo.combo >= 3) this.comboPulse = 0.35;
-    } else if (event.type === "customer_started") {
-      this.displayBatch = null; this.ledValue = 0; this.ledTarget = 0;
+      this.priceTags.push({ weight: event.weight, price: event.price.total, life: 0.62, maxLife: 0.62 });
+      this.bagPulse = 0.28;
+      this.floaters.push({ text: "+" + event.price.total + " 金币", x: 574, y: 660, life: 0.72, color: "#a83a2c" });
+    } else if (event.type === "snacks_gathered") {
+      if (event.combo >= 3) this.comboPulse = 0.22;
+    } else if (event.type === "customer_started" && event.index === 1) {
+      this.flight = null; this.scaleBatch = null; this.scaleBatchTimer = 0;
+      this.priceTags = []; this.floaters = [];
+      this.bagPulse = 0; this.comboPulse = 0; this.tapBounces = {};
+      this.ledValue = 0; this.ledStart = 0; this.ledTarget = 0; this.ledElapsed = 0;
     }
   };
   Renderer.prototype.advance = function (delta) {
+    if (this.flight) this.flight.elapsed += delta;
+    this.scaleBatchTimer = Math.max(0, this.scaleBatchTimer - delta);
     if (this.ledElapsed < this.ledDuration) {
       this.ledElapsed = Math.min(this.ledDuration, this.ledElapsed + delta);
       var t = this.ledDuration ? this.ledElapsed / this.ledDuration : 1;
-      this.ledValue = Math.round(this.ledTarget * (1 - Math.pow(1 - t, 3)));
+      this.ledValue = Math.round(this.ledStart + (this.ledTarget - this.ledStart) * (1 - Math.pow(1 - t, 3)));
     }
-    this.priceTagTimer = Math.max(0, this.priceTagTimer - delta);
+    for (var p = this.priceTags.length - 1; p >= 0; p -= 1) {
+      this.priceTags[p].life -= delta;
+      if (this.priceTags[p].life <= 0) this.priceTags.splice(p, 1);
+    }
     this.bagPulse = Math.max(0, this.bagPulse - delta);
     this.comboPulse = Math.max(0, this.comboPulse - delta);
     for (var i = this.floaters.length - 1; i >= 0; i -= 1) {
       this.floaters[i].life -= delta;
-      this.floaters[i].y -= delta * 32;
+      this.floaters[i].y -= delta * 42;
       if (this.floaters[i].life <= 0) this.floaters.splice(i, 1);
     }
     var self = this;
@@ -135,14 +142,14 @@
     if (!this.image("counter_top.svg")) { ctx.fillStyle = "#b08954"; ctx.fillRect(0, 330, 720, 700); }
     this.drawAsset("cashier_aisle.svg", 0, 1024, 720, 256);
     this.drawCustomer(game);
-    this.drawDevice(game);
-    this.drawZones(game, drag);
+    this.drawDevice();
     if (game.phase === "pouring") this.drawPour(game);
     else this.drawTableItems(game, drag);
+    this.drawScaleBatch();
     this.drawBatch(game);
     this.drawCashier(game);
     this.drawTop(game);
-    this.drawPriceTag();
+    this.drawPriceTags();
     this.drawFloaters();
   };
   Renderer.prototype.drawTop = function (game) {
@@ -188,7 +195,7 @@
     if (value !== String(text)) value = value.slice(0, -1) + "…";
     ctx.fillText(value, x, y);
   };
-  Renderer.prototype.drawDevice = function (game) {
+  Renderer.prototype.drawDevice = function () {
     var ctx = this.ctx;
     this.drawAsset("scale_stand.svg", 548, 260, 58, 58);
     this.drawAsset("scale_platform.svg", 452, 282, 250, 350);
@@ -196,42 +203,12 @@
     if (!this.image("scale_platform.svg")) { ctx.fillStyle = "#7a9b76"; ctx.fillRect(466, 320, 220, 290); }
     ctx.save(); ctx.fillStyle = "#b8f5d3"; ctx.font = "bold 26px monospace"; ctx.textAlign = "center";
     ctx.fillText(Math.round(this.ledValue) + " g", 558, 564);
-    ctx.font = "13px monospace"; ctx.fillText(game.auto ? "FIFO AUTO" : "FIFO MANUAL", 577, 187);
-    ctx.fillStyle = "#4a3525"; ctx.font = "bold 15px sans-serif"; ctx.fillText("收银显示屏", 577, 153); ctx.restore();
-    this.button(this.modeRect, game.auto ? "自动结算：开" : "自动结算：关", game.auto);
+    ctx.font = "13px monospace"; ctx.fillText("CLUSTER AUTO", 577, 187);
+    ctx.fillStyle = "#4a3525"; ctx.font = "bold 15px sans-serif"; ctx.fillText("收银显示屏", 577, 153);
+    ctx.font = "bold 16px sans-serif"; ctx.fillText("聚堆自动称重", 577, 238); ctx.restore();
     ctx.save(); ctx.fillStyle = "#4a3525"; ctx.font = "bold 16px sans-serif"; ctx.textAlign = "center";
-    ctx.fillText(game.auto ? "同款集齐自动称重" : "双击画面开始称重", 580, 660);
-    ctx.font = "14px sans-serif"; ctx.fillText("完整批次串行入袋", 580, 684); ctx.restore();
-  };
-  Renderer.prototype.zoneLabel = function (game, index) {
-    var section = game.sections[index];
-    if (game.activeZone === index) return "称重中…";
-    if (game.queue.indexOf(index) >= 0) return game.auto ? "已集齐 · 等待称重" : "已集齐 · 双击结算";
-    if (!section.length) return "拖入同款";
-    var snackId = section[0].snack;
-    for (var i = 0; i < section.length; i += 1) if (section[i].snack !== snackId) return "混放 " + section.length + " 件 · 点击退回";
-    var snack = this.db.snacks[snackId];
-    return (snack ? snack.name : snackId) + " " + section.length + "/" + game.snackTotal(snackId);
-  };
-  Renderer.prototype.drawZones = function (game, drag) {
-    var ctx = this.ctx;
-    ctx.save(); ctx.translate(0, TABLE_Y); ctx.scale(TABLE_SCALE, TABLE_SCALE);
-    for (var z = 0; z < 4; z += 1) {
-      var r = SDD.ZONE_RECTS[z];
-      var activeDrop = drag && drag.zone === z;
-      ctx.save(); ctx.fillStyle = COLORS[z]; ctx.globalAlpha = activeDrop ? 0.38 : game.isZoneLocked(z) ? 0.26 : 0.15;
-      ctx.beginPath(); ctx.ellipse(r.x + r.w / 2, r.y + r.h / 2, r.w / 2, r.h / 2, 0, 0, Math.PI * 2); ctx.fill();
-      if (activeDrop) { ctx.globalAlpha = 0.8; ctx.lineWidth = 5; ctx.strokeStyle = COLORS[z]; ctx.stroke(); }
-      ctx.globalAlpha = 1; ctx.fillStyle = "#4a3525"; ctx.font = "bold 16px sans-serif"; ctx.textAlign = "center";
-      this.fitText(this.zoneLabel(game, z), r.x + r.w / 2, r.y + r.h - 17, r.w - 16, 16);
-      ctx.restore();
-      var section = game.sections[z];
-      for (var i = 0; i < section.length; i += 1) {
-        var p = SDD.zoneItemPoint(z, i);
-        this.drawSnack(section[i], p.x, p.y, 0.54, false, true);
-      }
-    }
-    ctx.restore();
+    ctx.fillText("同款聚成堆 · 异款留空隙", 580, 660);
+    ctx.font = "14px sans-serif"; ctx.fillText("整理完成立即连续入秤", 580, 684); ctx.restore();
   };
   Renderer.prototype.drawTableItems = function (game, drag) {
     var ctx = this.ctx;
@@ -246,16 +223,15 @@
         ctx.beginPath(); ctx.arc(item.x, item.y, 72 + Math.sin(game.elapsed * 5) * 5, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
       }
       var bounceTime = this.tapBounces[item.uid] || 0;
-      var bounceY = bounceTime > 0 ? -Math.sin((0.22 - bounceTime) / 0.22 * Math.PI) * 12 : 0;
-      this.drawSnack(item, item.x, item.y + bounceY, drag && drag.uid === item.uid && drag.dragging ? 1.07 : 1, drag && drag.uid === item.uid, false);
+      var bounceY = bounceTime > 0 ? -Math.sin((0.14 - bounceTime) / 0.14 * Math.PI) * 9 : 0;
+      this.drawSnack(item, item.x, item.y + bounceY, drag && drag.uid === item.uid && drag.dragging ? 1.07 : 1, drag && drag.uid === item.uid);
     }
     ctx.restore();
   };
-  Renderer.prototype.drawSnack = function (item, x, y, scale, dragging, inZone) {
+  Renderer.prototype.drawSnack = function (item, x, y, scale, dragging) {
     var ctx = this.ctx;
-    var fileName = item.blind && !item.picked ? "blind.svg" : item.size === 2 ? "gift.svg" : this.snackFile(item.snack);
+    var fileName = item.blind && !item.revealed && !item.picked ? "blind.svg" : item.size === 2 ? "gift.svg" : this.snackFile(item.snack);
     var size = SDD.itemSize(item);
-    if (inZone) { size = item.size === 2 ? { w: 112, h: 92 } : { w: 100, h: 88 }; }
     var snack = this.db.snacks[item.snack] || { color: "#c8a06a", accent: "#c94f3d", name: "零食" };
     ctx.save(); ctx.translate(x, y); ctx.rotate(item.rotation || 0); ctx.scale(scale, scale);
     ctx.shadowColor = "rgba(74,53,37,.30)"; ctx.shadowBlur = dragging ? 10 : 3;
@@ -280,67 +256,81 @@
   };
   Renderer.prototype.drawPour = function (game) {
     var ctx = this.ctx;
-    var entry = SDD.clamp(game.pourElapsed / 0.55, 0, 1);
-    var basketX = -270 + entry * 120;
-    ctx.save(); ctx.globalAlpha = game.pourElapsed > game.pourDuration - 0.22 ? Math.max(0, (game.pourDuration - game.pourElapsed) / 0.22) : 1;
+    var count = game.basket.items.length;
+    var timing = game.pourTiming || SDD.pourTiming(count);
+    var entry = SDD.clamp(game.pourElapsed / timing.entry, 0, 1);
+    var basketX = -270 + (1 - Math.pow(1 - entry, 3)) * 120;
+    ctx.save(); ctx.globalAlpha = game.pourElapsed > game.pourDuration - timing.exit ? Math.max(0, (game.pourDuration - game.pourElapsed) / timing.exit) : 1;
     this.drawAsset("basket.svg", basketX, 566, 270, 342);
     if (!this.image("basket.svg")) { ctx.fillStyle = "#8f653d"; ctx.fillRect(basketX, 566, 270, 342); }
     ctx.restore();
-    var count = game.basket.items.length;
-    var stagger = Math.min(0.30, 0.98 / Math.max(1, count - 1));
     for (var i = 0; i < count; i += 1) {
       var item = game.basket.items[i];
-      var t = (game.pourElapsed - 1.32 - i * stagger) / 0.58;
+      var t = (game.pourElapsed - timing.first - i * timing.stagger) / timing.flight;
       if (t <= 0) continue;
       t = SDD.clamp(t, 0, 1);
       var end = this.localToGlobal(item);
       var start = { x: 18, y: 655 + (i % 5) * 24 };
-      var eased = 1 - Math.pow(1 - t, 2);
+      var eased = 1 - Math.pow(1 - t, 3);
       var x = start.x + (end.x - start.x) * eased;
-      var y = start.y + (end.y - start.y) * eased - Math.sin(Math.PI * t) * 115;
-      var globalItem = item;
-      ctx.save(); ctx.translate(x, y); ctx.rotate((1 - t) * (i % 2 ? 2 : -2)); ctx.translate(-x, -y);
-      this.drawSnack(globalItem, x, y, TABLE_SCALE, false, false);
+      var y = start.y + (end.y - start.y) * eased - Math.sin(Math.PI * t) * 90;
+      ctx.save(); ctx.translate(x, y); ctx.rotate((1 - eased) * (i % 2 ? 1.4 : -1.4)); ctx.translate(-x, -y);
+      this.drawSnack(item, x, y, TABLE_SCALE, false);
       ctx.restore();
     }
     ctx.save(); ctx.fillStyle = "rgba(74,53,37,.78)"; this.roundRect(190, 850, 340, 48, 20); ctx.fill();
     ctx.fillStyle = "#fff7e7"; ctx.font = "bold 19px sans-serif"; ctx.textAlign = "center";
-    ctx.fillText("零食撒落中 · 全部落地后开始分拣", 360, 880); ctx.restore();
+    ctx.fillText("零食撒落中 · 落地后自由聚堆", 360, 880); ctx.restore();
   };
-  Renderer.prototype.drawBatch = function (game) {
-    if (!this.displayBatch || !this.displayBatch.length) return;
-    var items = this.displayBatch;
-    if (game.batchPhase === "flying" && game.activeZone >= 0) {
-      var start = this.localToGlobal(SDD.zoneCenter(game.activeZone));
-      for (var i = 0; i < items.length; i += 1) {
-        var delay = i * 0.025;
-        var t = SDD.clamp((game.batchTimer <= this.flightDuration ? this.flightDuration - game.batchTimer - delay : 0) / Math.max(0.1, this.flightDuration - delay), 0, 1);
-        var end = { x: 535 + (i % 3) * 40, y: 390 + Math.floor(i / 3) * 42 };
-        var x = start.x + (end.x - start.x) * t;
-        var y = start.y + (end.y - start.y) * t - Math.sin(t * Math.PI) * 55;
-        this.drawSnack(items[i], x, y, 0.45, false, false);
-      }
-    } else if (game.batchPhase === "cooldown") {
-      for (var j = 0; j < items.length; j += 1) {
-        this.drawSnack(items[j], 520 + (j % 3) * 48, 385 + Math.floor(j / 3) * 52, 0.40, false, false);
-      }
+  Renderer.prototype.scalePoint = function (index) {
+    return { x: 520 + (index % 3) * 48, y: 385 + Math.floor(index / 3) * 52 };
+  };
+  Renderer.prototype.drawScaleBatch = function () {
+    if (!this.scaleBatch || !this.scaleBatch.length || this.scaleBatchTimer <= 0) return;
+    var ctx = this.ctx;
+    ctx.save(); ctx.globalAlpha = SDD.clamp(this.scaleBatchTimer / 0.16, 0, 1);
+    for (var i = 0; i < this.scaleBatch.length; i += 1) {
+      var p = this.scalePoint(i);
+      this.drawSnack(this.scaleBatch[i], p.x, p.y, 0.42, false);
+    }
+    ctx.restore();
+  };
+  Renderer.prototype.drawBatch = function () {
+    if (!this.flight || !this.flight.items.length) return;
+    var ctx = this.ctx;
+    for (var i = 0; i < this.flight.items.length; i += 1) {
+      var t = SDD.clamp((this.flight.elapsed - i * this.flight.stagger) / this.flight.flightTime, 0, 1);
+      var eased = 1 - Math.pow(1 - t, 3);
+      var start = this.localToGlobal(this.flight.starts[i]);
+      var end = this.scalePoint(i);
+      var x = start.x + (end.x - start.x) * eased;
+      var y = start.y + (end.y - start.y) * eased - Math.sin(t * Math.PI) * 58;
+      ctx.save(); ctx.translate(x, y); ctx.rotate((1 - eased) * (i % 2 ? 0.35 : -0.35)); ctx.translate(-x, -y);
+      this.drawSnack(this.flight.items[i], x, y, TABLE_SCALE + (0.42 - TABLE_SCALE) * eased, false);
+      ctx.restore();
     }
   };
-  Renderer.prototype.drawPriceTag = function () {
-    if (!this.priceTag || this.priceTagTimer <= 0) return;
+  Renderer.prototype.drawPriceTags = function () {
     var ctx = this.ctx;
-    var fly = this.priceTagTimer < 0.30 ? 1 - this.priceTagTimer / 0.30 : 0;
-    var x = 472 + (610 - 472) * fly;
-    var y = 702 + (1130 - 702) * fly;
-    ctx.save(); ctx.globalAlpha = Math.min(1, this.priceTagTimer * 3); ctx.translate(x, y); ctx.rotate(-0.04 + fly * 0.2);
-    ctx.fillStyle = "#fffdf5"; ctx.fillRect(0, 0, 190, 70); ctx.lineWidth = 3; ctx.strokeStyle = "#4a3525"; ctx.strokeRect(0, 0, 190, 70);
-    ctx.fillStyle = "#4a3525"; ctx.font = "bold 22px monospace"; ctx.textAlign = "center";
-    ctx.fillText(this.priceTag.weight + "g  ¥" + this.priceTag.price, 95, 32);
-    ctx.font = "12px monospace"; ctx.fillText("SNACK DING DONG", 95, 54); ctx.restore();
+    for (var i = 0; i < this.priceTags.length; i += 1) {
+      var tag = this.priceTags[i];
+      var age = tag.maxLife - tag.life;
+      var enter = SDD.clamp(age / 0.08, 0, 1);
+      var fly = SDD.clamp((age - 0.20) / 0.30, 0, 1);
+      var x = 472 + (610 - 472) * fly + i * 8;
+      var y = 702 + (1130 - 702) * fly - (1 - enter) * 20 - i * 12;
+      ctx.save(); ctx.globalAlpha = Math.min(enter, SDD.clamp(tag.life / 0.12, 0, 1));
+      ctx.translate(x, y); ctx.rotate(-0.04 + fly * 0.2); ctx.scale(0.85 + enter * 0.15, 0.85 + enter * 0.15);
+      ctx.fillStyle = "#fffdf5"; ctx.fillRect(0, 0, 190, 70); ctx.lineWidth = 3; ctx.strokeStyle = "#4a3525"; ctx.strokeRect(0, 0, 190, 70);
+      ctx.fillStyle = "#4a3525"; ctx.font = "bold 22px monospace"; ctx.textAlign = "center";
+      ctx.fillText(tag.weight + "g  ¥" + tag.price, 95, 32);
+      ctx.font = "12px monospace"; ctx.fillText("SNACK DING DONG", 95, 54); ctx.restore();
+    }
   };
   Renderer.prototype.drawCashier = function (game) {
     var ctx = this.ctx;
-    var bounce = this.bagPulse > 0 ? -Math.sin(this.bagPulse * 18) * 7 : 0;
+    var pulse = this.bagPulse > 0 ? Math.sin((1 - this.bagPulse / 0.28) * Math.PI) : 0;
+    var bounce = -pulse * 8;
     this.drawAsset("cashier_body.svg", 246, 1036 + bounce, 220, 230);
     if (this.bagPulse > 0) this.drawAsset("cashier_arm.svg", 382, 1090 + bounce, 104, 100);
     var bagScale = 1 + this.bagPulse * 0.12;
@@ -359,17 +349,6 @@
       ctx.fillText(floater.text, floater.x, floater.y);
     }
     ctx.restore();
-  };
-  Renderer.prototype.hitZoneItem = function (game, p) {
-    for (var z = 0; z < 4; z += 1) {
-      var section = game.sections[z];
-      for (var i = section.length - 1; i >= 0; i -= 1) {
-        var center = SDD.zoneItemPoint(z, i);
-        var size = section[i].size === 2 ? { w: 65, h: 54 } : { w: 58, h: 51 };
-        if (Math.abs(p.x - center.x) <= size.w / 2 + 8 && Math.abs(p.y - center.y) <= size.h / 2 + 8) return { zone: z, uid: section[i].uid };
-      }
-    }
-    return null;
   };
 
   SDD.Renderer = Renderer;

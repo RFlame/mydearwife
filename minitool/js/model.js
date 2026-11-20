@@ -30,25 +30,24 @@
   var DRAG_BOUNDS = { x: 16, y: -92, w: 888, h: 892 };
   var SCALE_BLOCK = { x: 580, y: -152, w: 320, h: 450 };
   var SCALE_GAP = 4;
-  var ZONE_RECTS = [
-    { x: 44, y: -48, w: 184, h: 176 },
-    { x: 372, y: -48, w: 184, h: 176 },
-    { x: 44, y: 140, w: 184, h: 176 },
-    { x: 372, y: 140, w: 184, h: 176 }
-  ];
-  var ZONE_OFFSETS = [
-    point(0, 0), point(-26, -18), point(26, -18), point(-28, 18), point(28, 18),
-    point(0, -30), point(0, 30), point(-38, 0), point(38, 0), point(-16, 0),
-    point(16, 0), point(0, 14)
+  var CLUSTER_GAP = 18;
+  var FOREIGN_GAP = 28;
+  var CLUSTER_OFFSETS = [
+    point(0, 0), point(-34, -24), point(34, -24), point(-36, 24), point(36, 24),
+    point(0, -38), point(0, 38), point(-48, 0), point(48, 0), point(-18, 0),
+    point(18, 0), point(0, 16)
   ];
 
   function itemSize(item) {
     return item.size === 2 ? { w: 152, h: 120 } : { w: 120, h: 104 };
   }
   function cornersAt(item, x, y) {
+    return paddedCornersAt(item, x, y, 0);
+  }
+  function paddedCornersAt(item, x, y, padding) {
     var size = itemSize(item);
-    var hw = size.w / 2;
-    var hh = size.h / 2;
+    var hw = size.w / 2 + padding;
+    var hh = size.h / 2 + padding;
     var angle = item.rotation || 0;
     var c = Math.cos(angle);
     var s = Math.sin(angle);
@@ -242,24 +241,49 @@
     return result;
   };
 
-  function zoneAt(p) {
-    for (var i = 0; i < ZONE_RECTS.length; i += 1) {
-      var r = ZONE_RECTS[i];
-      var nx = (p.x - (r.x + r.w / 2)) / (r.w / 2);
-      var ny = (p.y - (r.y + r.h / 2)) / (r.h / 2);
-      if (nx * nx + ny * ny <= 1) return i;
+  function packagesNear(a, b, gap) {
+    return polygonsIntersect(paddedCornersAt(a, a.x, a.y, gap + 0.001), cornersAt(b, b.x, b.y));
+  }
+
+  function findReadyClusters(items) {
+    var remaining = items.filter(function (item) { return !item.picked; });
+    remaining.sort(function (a, b) { return a.uid - b.uid; });
+    var visited = {};
+    var ready = [];
+    for (var i = 0; i < remaining.length; i += 1) {
+      var seed = remaining[i];
+      if (visited[seed.uid]) continue;
+      var component = [];
+      var stack = [seed];
+      visited[seed.uid] = true;
+      while (stack.length) {
+        var current = stack.pop();
+        component.push(current);
+        for (var j = 0; j < remaining.length; j += 1) {
+          var candidate = remaining[j];
+          if (visited[candidate.uid] || candidate.snack !== seed.snack) continue;
+          if (!packagesNear(current, candidate, CLUSTER_GAP)) continue;
+          visited[candidate.uid] = true;
+          stack.push(candidate);
+        }
+      }
+      var snackTotal = 0;
+      for (var t = 0; t < remaining.length; t += 1) if (remaining[t].snack === seed.snack) snackTotal += 1;
+      if (component.length !== snackTotal) continue;
+      var blocked = false;
+      for (var m = 0; m < component.length && !blocked; m += 1) {
+        for (var f = 0; f < remaining.length; f += 1) {
+          if (remaining[f].snack === seed.snack) continue;
+          if (packagesNear(component[m], remaining[f], FOREIGN_GAP)) { blocked = true; break; }
+        }
+      }
+      if (!blocked) {
+        component.sort(function (a, b) { return a.uid - b.uid; });
+        ready.push({ snack: seed.snack, items: component });
+      }
     }
-    return -1;
-  }
-  function zoneCenter(index) {
-    var r = ZONE_RECTS[index];
-    return point(r.x + r.w / 2, r.y + r.h / 2);
-  }
-  function zoneItemPoint(index, itemIndex) {
-    var center = zoneCenter(index);
-    var offset = ZONE_OFFSETS[itemIndex % ZONE_OFFSETS.length];
-    var ring = Math.floor(itemIndex / ZONE_OFFSETS.length);
-    return point(center.x + offset.x + ring * 9, center.y + offset.y + ring * 8);
+    ready.sort(function (a, b) { return a.items[0].uid - b.items[0].uid; });
+    return ready;
   }
 
   function generateBasket(cfg, snacks, rng) {
@@ -308,14 +332,15 @@
   SDD.RNG = RNG;
   SDD.Basket = Basket;
   SDD.generateBasket = generateBasket;
-  SDD.zoneAt = zoneAt;
-  SDD.zoneCenter = zoneCenter;
-  SDD.zoneItemPoint = zoneItemPoint;
+  SDD.findReadyClusters = findReadyClusters;
+  SDD.packagesNear = packagesNear;
   SDD.itemSize = itemSize;
   SDD.cornersAt = cornersAt;
   SDD.TABLE_BOUNDS = TABLE_BOUNDS;
   SDD.DRAG_BOUNDS = DRAG_BOUNDS;
   SDD.SCALE_BLOCK = SCALE_BLOCK;
-  SDD.ZONE_RECTS = ZONE_RECTS;
+  SDD.CLUSTER_GAP = CLUSTER_GAP;
+  SDD.FOREIGN_GAP = FOREIGN_GAP;
+  SDD.CLUSTER_OFFSETS = CLUSTER_OFFSETS;
   SDD.clamp = clamp;
 }());
