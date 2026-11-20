@@ -48,8 +48,9 @@ func _ready() -> void:
 
 	_add_row_label(panel, "关卡", 30)
 	level_option = _make_option(Vector2(270, 28), Vector2(290, 62))
-	for level_id in range(1, 21):
-		level_option.add_item("第 %d 关 · %d 款" % [level_id, level_id + 1])
+	for level_id in range(1, app.db.level_count() + 1):
+		var kinds := int(app.db.get_level(level_id).get("snack_kinds", 3))
+		level_option.add_item("第 %d 关 · %d 款" % [level_id, kinds])
 	level_option.select(clampi(int(initial_options.get("level_id", 1)), 1, 20) - 1)
 	panel.add_child(level_option)
 
@@ -62,7 +63,7 @@ func _ready() -> void:
 	panel.add_child(preset_option)
 
 	random_check = CheckButton.new()
-	random_check.text = "每款随机 1～20 件"
+	random_check.text = "每款随机 1～10 件"
 	random_check.button_pressed = bool(initial_options.get("random_quantity", true))
 	random_check.position = Vector2(32, 205)
 	random_check.size = Vector2(520, 70)
@@ -77,9 +78,9 @@ func _ready() -> void:
 	quantity_slider.position = Vector2(270, 318)
 	quantity_slider.size = Vector2(200, 44)
 	quantity_slider.min_value = 1
-	quantity_slider.max_value = 20
+	quantity_slider.max_value = 10
 	quantity_slider.step = 1
-	quantity_slider.value = clampi(int(initial_options.get("fixed_quantity", 2)), 1, 20)
+	quantity_slider.value = clampi(int(initial_options.get("fixed_quantity", 2)), 1, 10)
 	quantity_slider.value_changed.connect(func(_value): _sync_values())
 	panel.add_child(quantity_slider)
 	quantity_value = UIKit.make_label("", 26, UIKit.RED)

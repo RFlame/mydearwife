@@ -432,6 +432,8 @@ class CDP:
         ey = origin_y + float(end["y"]) * scale
         await self.call("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": sx, "y": sy, "button": "none"})
         await self.call("Input.dispatchMouseEvent", {"type": "mousePressed", "x": sx, "y": sy, "button": "left", "buttons": 1, "clickCount": 1})
+        # 给 Godot Web 至少一帧建立拖动捕获，避免慢帧把首个位移合并到按下之前。
+        await asyncio.sleep(0.05)
         for i in range(1, 9):
             x = sx + (ex - sx) * i / 8.0
             y = sy + (ey - sy) * i / 8.0

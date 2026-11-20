@@ -92,14 +92,14 @@ func _run() -> void:
 		guard += 1
 		await get_tree().create_timer(0.05).timeout
 	_expect(gs._basket_phase == "done" and not gs._switching_customer and not is_instance_valid(gs.basket_view), "empty basket disappears before input unlocks")
-	_expect(_table_parent_count(gs) == 6 and _flying_count(gs) == 0 and st.basket.remaining() == 6, "all 6 snacks remain on the table after pouring")
+	_expect(_table_parent_count(gs) == 8 and _flying_count(gs) == 0 and st.basket.remaining() == 8, "all 8 snacks remain on the table after pouring")
 	var scales_restored := true
 	for uid in gs.snack_nodes:
 		var node: SnackView = gs.snack_nodes[uid]
 		scales_restored = scales_restored and node.scale.is_equal_approx(Vector2.ONE)
 	_expect(scales_restored, "poured snacks restore standard table scale and matching hit areas")
 
-	_spread_pairs(gs)
+	var groups := _spread_pairs(gs)
 	_check_layout(gs)
 	_check_generated_bounds(app)
 	_check_drag_aisle_boundary(st)
@@ -108,33 +108,94 @@ func _run() -> void:
 	await get_tree().create_timer(0.22).timeout
 	_expect(absf(gs.cashier_view.rig.position.y - idle_before) > 0.05, "cashier idle animation produces visible breathing motion")
 
-	# 使用位于 (130,180) 的确定夹具，单击不聚堆，拖到右下也只改变位置。
-	var pick_item: Dictionary = {}
-	for candidate in st.basket.top_items():
-		if Vector2(float(candidate["x"]), float(candidate["y"])).distance_to(Vector2(130, 180)) < 0.1:
-			pick_item = candidate
-			break
-	_expect(not pick_item.is_empty(), "the spread fixture exposes its upper-left snack")
-	if pick_item.is_empty():
+	# 第一对相距 380px：单击后先沿桌面抛物线迁移，到位才提层、扫描并进入称重。
+	var ids := groups.keys()
+	ids.sort()
+	var click_pair: Array = groups[ids[0]]
+	var pick_item: Dictionary = click_pair[0]
+	var pick_uid := int(pick_item["uid"])
+	var pick_origin := Vector2(float(pick_item["x"]), float(pick_item["y"]))
+	var pick_layer := int(pick_item["layer"])
+	var target := st.basket.find_click_target(pick_uid)
+	_expect(not target.is_empty() and int(target.get("uid", -1)) == int(click_pair[1]["uid"]), "the spread fixture exposes a distant same-kind click target")
+	if target.is_empty():
 		_finish(st)
 		return
-	var pick_point := _exposed_point(gs, int(pick_item["uid"]))
+	var destination: Vector2 = st.basket.clamp_to_drag(pick_item, target["point"])
+	var pick_point := _exposed_point(gs, pick_uid)
 	var action_before: int = gs.cashier_view.action_seq
-	var tap_before: int = gs.snack_nodes[int(pick_item["uid"])].tap_seq
 	await _click(pick_point)
-	_expect(st.tray.is_empty() and st.basket.remaining() == 6 and st.batch_serial == 0, "real table click only bounces without gathering or weighing")
-	_expect(gs.snack_nodes[int(pick_item["uid"])].tap_seq == tap_before + 1, "real table click triggers the local hop")
+	_expect(gs._last_table_tap_outcome == "fly" and gs._last_table_tap_target_uid == int(target["uid"]), "real table click selects the distant same-kind target")
+	_expect(gs._click_flight_uid == pick_uid and gs.snack_nodes[pick_uid].flying, "real click starts a visible desktop flight")
+	var core_during_flight := st.basket.get_item(pick_uid)
+	_expect(Vector2(float(core_during_flight["x"]), float(core_during_flight["y"])) == pick_origin and int(core_during_flight["layer"]) == pick_layer, "click flight does not commit core position or layer before arrival")
+	_expect(st.batch_serial == 0 and st.basket.remaining() == 8, "click flight does not scan or remove a cluster before arrival")
+	await get_tree().create_timer(0.08).timeout
+	_expect(gs.snack_nodes[pick_uid].global_position.distance_to(gs.table_view.to_global(pick_origin)) > 4.0 or gs.snack_nodes[pick_uid].sprite.position.y < -4.0, "the clicked package visibly moves along its desktop arc")
+
+	# 迁移锁期间点击另一款，不能产生新的拖动、跳动或覆盖单击遥测。
+	var competing: Dictionary = groups[ids[1]][0]
+	var competing_uid := int(competing["uid"])
+	var competing_origin := Vector2(float(competing["x"]), float(competing["y"]))
+	var tap_seq_before := gs._table_tap_seq
+	var competing_taps: int = gs.snack_nodes[competing_uid].tap_seq
+	await _click(_exposed_point(gs, competing_uid))
+	var competing_after := st.basket.get_item(competing_uid)
+	_expect(gs._table_tap_seq == tap_seq_before and gs._last_table_tap_uid == pick_uid and gs._drag_uid == -1, "competing real input is ignored during click migration")
+	_expect(Vector2(float(competing_after["x"]), float(competing_after["y"])) == competing_origin and gs.snack_nodes[competing_uid].tap_seq == competing_taps, "competing input neither moves nor bounces another package")
+	core_during_flight = st.basket.get_item(pick_uid)
+	_expect(Vector2(float(core_during_flight["x"]), float(core_during_flight["y"])) == pick_origin and st.batch_serial == 0, "competing input cannot commit the in-flight package early")
+
+	var batch_guard := 0
+	while st.batch_serial == 0 and batch_guard < 80:
+		batch_guard += 1
+		await get_tree().create_timer(0.02).timeout
+	_expect(st.batch_serial == 1 and st.active_batch.size() == 2 and gs._click_flight_uid == -1, "arrival commits the move and immediately hands the complete pair to weighing")
+	var arrived := false
+	for item in st.active_batch:
+		if int(item["uid"]) == pick_uid:
+			arrived = Vector2(float(item["x"]), float(item["y"])).distance_to(destination) < 0.02 and int(item["layer"]) > pick_layer
+	_expect(arrived, "arrival applies the clamped destination and raises the core layer before scanning")
+	var weigh_guard := 0
+	while st.weighed_serial == 0 and weigh_guard < 100:
+		weigh_guard += 1
+		await get_tree().create_timer(0.02).timeout
+	_expect(st.weighed_serial == 1 and st.bagged_items == 2 and st.basket.remaining() == 6 and st.batches_clear(), "the clicked pair finishes the existing automatic weighing flow")
+	_expect(gs.cashier_view.action_seq > action_before, "the completed click migration triggers cashier sorting")
+
+	# 第二对放在 220px 内但保持 20px 表面净间隙：无远处同款，单击只能原地跳。
+	var bounce_pair: Array = groups[ids[1]]
+	var bounce_item: Dictionary = bounce_pair[0]
+	var bounce_mate: Dictionary = bounce_pair[1]
+	var bounce_uid := int(bounce_item["uid"])
+	var bounce_origin := Vector2(float(bounce_item["x"]), float(bounce_item["y"]))
+	var nearby_distance := minf(214.0, (BasketModel.hit_size(bounce_item).y + BasketModel.hit_size(bounce_mate).y) * 0.5 + 20.0)
+	st.move_item(int(bounce_mate["uid"]), bounce_origin + Vector2(0, nearby_distance), true)
+	gs.snack_nodes[int(bounce_mate["uid"])].global_position = gs.table_view.to_global(Vector2(float(bounce_mate["x"]), float(bounce_mate["y"])))
+	gs._refresh_table_layers()
+	bounce_item = st.basket.get_item(bounce_uid)
+	var bounce_layer := int(bounce_item["layer"])
+	var bounce_taps: int = gs.snack_nodes[bounce_uid].tap_seq
+	action_before = gs.cashier_view.action_seq
+	await _click(_exposed_point(gs, bounce_uid))
+	var bounced := st.basket.get_item(bounce_uid)
+	_expect(gs._last_table_tap_outcome == "bounce" and gs._last_table_tap_target_uid == -1 and gs._click_flight_uid == -1, "no distant same-kind target selects the bounce fallback")
+	_expect(gs.snack_nodes[bounce_uid].tap_seq == bounce_taps + 1, "real table click triggers the local hop when migration is unavailable")
+	_expect(Vector2(float(bounced["x"]), float(bounced["y"])) == bounce_origin and int(bounced["layer"]) == bounce_layer, "bounce fallback preserves core position and layer")
+	_expect(st.batch_serial == 1 and st.bagged_items == 2 and st.basket.remaining() == 6, "bounce fallback does not gather or weigh the nearby disconnected pair")
 	_expect(gs.cashier_view.action_seq == action_before, "table bounce does not trigger cashier sorting")
 
+	# 后续自由拖动改用未结算的第二对，验证 incomplete kind 仍留在桌面。
+	pick_point = _exposed_point(gs, bounce_uid)
 	await _drag(pick_point, gs.table_view.to_global(Vector2(820, 740)))
 	await get_tree().create_timer(0.10).timeout
-	var moved := st.basket.get_item(int(pick_item["uid"]))
+	var moved := st.basket.get_item(bounce_uid)
 	_expect(float(moved["x"]) > BasketModel.TABLE_BOUNDS.end.x and float(moved["y"]) > 600.0, "real drag places a snack on the lower-right tabletop beyond the legacy left safe area")
 	_expect(_item_corners_inside(moved, BasketModel.DRAG_BOUNDS), "full-counter real drag keeps every rotated corner above the cashier aisle")
-	_expect(st.basket.remaining() == 6 and st.bagged_items == 0 and st.active_batch.is_empty(), "an incomplete kind stays on the table after free placement")
+	_expect(st.basket.remaining() == 6 and st.bagged_items == 2 and st.active_batch.is_empty(), "an incomplete kind stays on the table after free placement")
 	_expect(gs._pos_mode_label.text == "聚堆自动称重", "POS remains a static automatic-clustering label")
 	await _double_click(Vector2(690, 1160))
-	_expect(st.batch_serial == 0 and st.bagged_items == 0, "real screen double click does not settle incomplete snacks")
+	_expect(st.batch_serial == 1 and st.bagged_items == 2, "real screen double click does not settle incomplete snacks")
 	await _shot("counter_free_drag")
 	_finish(st)
 
@@ -150,7 +211,7 @@ func _safe_seed(app, level_id: int) -> int:
 	return 42
 
 
-func _spread_pairs(gs: GameScreen) -> void:
+func _spread_pairs(gs: GameScreen) -> Dictionary:
 	var groups := {}
 	for item in gs.state.basket.items:
 		if not groups.has(item["snack"]):
@@ -158,7 +219,8 @@ func _spread_pairs(gs: GameScreen) -> void:
 		groups[item["snack"]].append(item)
 	var ids := groups.keys()
 	ids.sort()
-	var points := [Vector2(130, 180), Vector2(130, 560), Vector2(520, 400), Vector2(520, 680), Vector2(800, 400), Vector2(800, 680)]
+	var points := [Vector2(130, 180), Vector2(130, 560), Vector2(520, 400), Vector2(520, 680),
+		Vector2(800, 180), Vector2(800, 560), Vector2(800, 740), Vector2(500, 180)]
 	var index := 0
 	for snack_id in ids:
 		for item in groups[snack_id]:
@@ -169,6 +231,7 @@ func _spread_pairs(gs: GameScreen) -> void:
 			gs.snack_nodes[uid].global_position = gs.table_view.to_global(points[index])
 			index += 1
 	gs._refresh_table_layers()
+	return groups
 
 
 func _check_layout(gs: GameScreen) -> void:

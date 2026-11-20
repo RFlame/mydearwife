@@ -128,12 +128,12 @@ func _web_smoke_snapshot(_args: Array) -> String:
 		data = {"page": "test", "test_options": current.current_options(),
 			"start": _rect_snapshot(current.start_button.get_global_rect()),
 			"controls": {
-				"level": _rect_snapshot(current.level_option.get_global_rect()),
-				"preset": _rect_snapshot(current.preset_option.get_global_rect()),
+				"level": _option_snapshot(current.level_option),
+				"preset": _option_snapshot(current.preset_option),
 				"random": _rect_snapshot(current.random_check.get_global_rect()),
 				"quantity": _rect_snapshot(current.quantity_slider.get_global_rect()),
 				"size": _rect_snapshot(current.size_slider.get_global_rect()),
-				"giant": _rect_snapshot(current.giant_option.get_global_rect()),
+				"giant": _option_snapshot(current.giant_option),
 			}}
 	elif current is ResultScreen:
 		data["page"] = "result"
@@ -161,6 +161,8 @@ func _web_smoke_snapshot(_args: Array) -> String:
 				available.append({"uid": int(item["uid"]), "snack": String(item["snack"]),
 					"size": int(item["size"]), "giant": BasketModel.is_giant(item),
 					"package_scale": float(item.get("package_scale", 1.0)),
+					"product_scale": float(item.get("product_scale", 1.0)),
+					"logical_size": _point_snapshot(BasketModel.hit_size(item)),
 					"weight": db.snack_weight(String(item["snack"])) * int(item.get("size", 1)),
 					"table_x": float(item["x"]), "table_y": float(item["y"]), "x": global.x, "y": global.y})
 		var table_items: Array = []
@@ -181,6 +183,8 @@ func _web_smoke_snapshot(_args: Array) -> String:
 			table_items.append({"uid": uid, "snack": String(item["snack"]),
 				"size": int(item["size"]), "giant": BasketModel.is_giant(item),
 				"package_scale": float(item.get("package_scale", 1.0)),
+				"product_scale": float(item.get("product_scale", 1.0)),
+				"logical_size": _point_snapshot(BasketModel.hit_size(item)),
 				"table_x": center.x, "table_y": center.y,
 				"x": global_center.x, "y": global_center.y,
 				"rotation": node.rotation if node else 0.0, "flying": node.flying if node else true,
@@ -240,7 +244,10 @@ func _web_smoke_snapshot(_args: Array) -> String:
 			"batch_duration": st.batch_duration, "batch_serial": st.batch_serial,
 			"weighed_serial": st.weighed_serial,
 			"price_tags": gs._price_tags.size(), "price_tag_serial": gs._price_tag_serial,
-			"table_tap": {"seq": gs._table_tap_seq, "uid": gs._last_table_tap_uid},
+			"table_tap": {"seq": gs._table_tap_seq, "uid": gs._last_table_tap_uid,
+				"outcome": gs._last_table_tap_outcome, "target_uid": gs._last_table_tap_target_uid,
+				"from": _point_snapshot(gs._last_table_tap_from), "to": _point_snapshot(gs._last_table_tap_to)},
+			"click_flight_uid": gs._click_flight_uid,
 			"queue_ids": st.upcoming_customers(), "tools": _legacy_tool_buttons(gs, []),
 			"layout": {
 				"pos": _rect_snapshot(gs.pos_view.get_global_rect()),
@@ -276,6 +283,15 @@ func _web_smoke_snapshot(_args: Array) -> String:
 		"preset": String(save.settings.get("preset", "standard")),
 	}
 	return JSON.stringify(data)
+
+
+func _option_snapshot(option: OptionButton) -> Dictionary:
+	var data := _rect_snapshot(option.get_global_rect())
+	var popup := option.get_popup()
+	data["item_count"] = popup.item_count
+	data["popup"] = {"visible": popup.visible,
+		"rect": _rect_snapshot(Rect2(Vector2(popup.position), Vector2(popup.size)))}
+	return data
 
 
 func _rect_snapshot(rect: Rect2) -> Dictionary:

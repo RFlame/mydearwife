@@ -39,6 +39,12 @@ var customer_view: CustomerView
 var snack_nodes := {}
 var _table_tap_seq := 0
 var _last_table_tap_uid := -1
+var _last_table_tap_outcome := ""
+var _last_table_tap_target_uid := -1
+var _last_table_tap_from := Vector2.ZERO
+var _last_table_tap_to := Vector2.ZERO
+var _click_flight_uid := -1
+var _click_flight_destination := Vector2.ZERO
 var _price_tags: Array = []
 var _price_tag_serial := 0
 
@@ -104,6 +110,11 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if _click_flight_uid > 0:
+		# 单击桌面迁移很短，但期间必须忽略竞争输入，避免核心坐标与视觉落点分叉。
+		if event is InputEventMouseButton or event is InputEventMouseMotion:
+			get_viewport().set_input_as_handled()
+		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 		if _drag_uid > 0:
 			_finish_table_press()
@@ -117,7 +128,7 @@ func _input(event: InputEvent) -> void:
 		return
 	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
 		return
-	# 桌面按下只准备拖动；松开未越阈值时仅播放原地轻跳。
+	# 桌面按下只准备拖动；松开未越阈值时迁移到远处同款或原地轻跳。
 	var table_uid := state.basket.hit_test_assisted(table_view.to_local(event.position))
 	if table_uid > 0:
 		_drag_uid = table_uid
@@ -172,7 +183,7 @@ func _process(delta: float) -> void:
 		state.update(delta)
 	customer_view.set_patience(state.clock.ratio(), state.clock.frozen > 0.0)
 	_idle += delta
-	if not _switching_customer and state.cfg.get("auto_hint", false) and _idle > 3.0 and state.state == "playing":
+	if not _switching_customer and _click_flight_uid < 0 and state.cfg.get("auto_hint", false) and _idle > 3.0 and state.state == "playing":
 		_apply_hint()
 
 
@@ -330,7 +341,7 @@ func _build_counter() -> void:
 	_pos_mode_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	pos_view.add_child(_pos_mode_label)
 
-	_settle_hint = UIKit.make_label("同款聚堆 · 异款留隙\n松手自动称重", 18, UIKit.BROWN)
+	_settle_hint = UIKit.make_label("同款聚堆 · 异款勿触\n松手自动称重", 18, UIKit.BROWN)
 	_settle_hint.position = Vector2(446, 650)
 	_settle_hint.size = Vector2(264, 48)
 	add_child(_settle_hint)
@@ -429,7 +440,7 @@ func _spawn_basket_items() -> void:
 
 
 func _on_snack_clicked(uid: int) -> void:
-	if _paused or _switching_customer or state.state != "playing":
+	if _paused or _switching_customer or _click_flight_uid > 0 or state.state != "playing":
 		return
 	_idle = 0.0
 	_clear_hint()
@@ -437,11 +448,52 @@ func _on_snack_clicked(uid: int) -> void:
 	if item.is_empty() or item.get("picked", false):
 		return
 	var node: SnackView = snack_nodes.get(uid)
-	if node and not node.flying:
-		_table_tap_seq += 1
-		_last_table_tap_uid = uid
-		node.tap_bounce()
-		SFX.play("pick", 0.88)
+	if node == null or node.flying:
+		return
+	_table_tap_seq += 1
+	_last_table_tap_uid = uid
+	_last_table_tap_outcome = "bounce"
+	_last_table_tap_target_uid = -1
+	var origin := Vector2(float(item["x"]), float(item["y"]))
+	_last_table_tap_from = origin
+	_last_table_tap_to = origin
+	var target := state.basket.find_click_target(uid)
+	if not target.is_empty():
+		var destination: Vector2 = state.basket.clamp_to_drag(item, target["point"])
+		if destination.distance_to(origin) > 0.01:
+			_last_table_tap_outcome = "fly"
+			_last_table_tap_target_uid = int(target["uid"])
+			_last_table_tap_to = destination
+			_click_flight_uid = uid
+			_click_flight_destination = destination
+			node.z_index = 650
+			node.return_to(table_view.to_global(destination), int(item["layer"]) * 2 + 2,
+				deg_to_rad(float(item["rot"])), 0.24, 52.0, _finish_click_flight.bind(uid))
+			SFX.play("pick", 0.98)
+			if app != null and app._web_smoke_enabled:
+				app._publish_web_smoke()
+			return
+	node.tap_bounce()
+	SFX.play("pick", 0.88)
+	if app != null and app._web_smoke_enabled:
+		app._publish_web_smoke()
+
+
+func _finish_click_flight(uid: int) -> void:
+	if uid != _click_flight_uid:
+		return
+	var destination := _click_flight_destination
+	_click_flight_uid = -1
+	if state == null or state.state != "playing" or _switching_customer:
+		return
+	var item := state.basket.get_item(uid)
+	if item.is_empty() or item.get("picked", false):
+		return
+	# 桌面动画到位后才提交核心位置；合格堆由既有批次信号立即接管称重飞行。
+	state.finish_move(uid, destination, true)
+	_refresh_table_layers()
+	if app != null and app._web_smoke_enabled:
+		app._publish_web_smoke()
 
 
 func _on_snack_picked(item: Dictionary) -> void:
@@ -742,6 +794,7 @@ func _cancel_interaction() -> void:
 				state.finish_move(_drag_uid, Vector2(float(item["x"]), float(item["y"])))
 	_drag_uid = -1
 	_dragging = false
+	_click_flight_uid = -1
 	_suppress_release = false
 	_last_tap_uid = -1
 	_last_tap_snack = ""
@@ -786,7 +839,7 @@ func _refresh_pos() -> void:
 	elif not state.tray.is_empty():
 		_pos_detail.text = "称重台 %d 件\n自动整理结算" % state.tray.entries.size()
 	else:
-		_pos_detail.text = "同款聚成一堆\n周边异款留空隙"
+		_pos_detail.text = "同款聚成一堆\n异款不要接触"
 	if state.batch_phase == "idle":
 		scale_view.set_live_weight(state.tray_weight())
 

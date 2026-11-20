@@ -11,7 +11,7 @@ const DRAG_SCALE_BLOCK := Rect2(580, -152, 320, 450)
 const DRAG_SCALE_GAP := 4.0
 const GATHER_RADIUS := 220.0
 const CLUSTER_GAP := 18.0
-const FOREIGN_GAP := 28.0
+const FOREIGN_GAP := 0.0
 
 var items: Array = []  # {uid, snack, size, blind, revealed, gift, picked, x, y, rot, layer}
 
@@ -23,7 +23,7 @@ static func hit_size(item: Dictionary) -> Vector2:
 			base = Vector2(152, 120)
 		3:
 			base = Vector2(192, 164)
-	return base * float(item.get("package_scale", 1.0))
+	return base * float(item.get("package_scale", 1.0)) * float(item.get("product_scale", 1.0))
 
 
 static func is_giant(item: Dictionary) -> bool:
@@ -156,7 +156,7 @@ func hit_test_assisted(point: Vector2, padding: float = 14.0) -> int:
 	return -1
 
 
-## 返回一个实际不被高层覆盖的篮内局部点击点；无合法点时返回 (-1,-1)。
+## 返回一个实际不被高层覆盖、且尽量远离遮挡边缘的篮内局部点击点；无合法点时返回 (-1,-1)。
 func exposed_point(uid: int) -> Vector2:
 	var target := get_item(uid)
 	if target.is_empty() or not can_pick(uid):
@@ -164,13 +164,40 @@ func exposed_point(uid: int) -> Vector2:
 	var size := hit_size(target)
 	var center := Vector2(float(target["x"]), float(target["y"]))
 	var rotation := deg_to_rad(float(target.get("rot", 0.0)))
+	var hits: Array = []
 	for gy in 9:
+		var row: Array = []
 		for gx in 9:
 			var local := -size * 0.5 + size * Vector2((gx + 0.5) / 9.0, (gy + 0.5) / 9.0)
 			var point := center + local.rotated(rotation)
-			if hit_test(point) == uid:
-				return point
-	return Vector2(-1, -1)
+			row.append(hit_test(point))
+		hits.append(row)
+	# 首个露出采样点可能紧贴上层边缘，浏览器把指针量化 1px 后就会误中邻居。
+	# 使用同一组 81 次命中结果，选择离异物采样点最远的露出格；等距时靠近自身中心。
+	var best := Vector2i(-1, -1)
+	var best_clearance := -1.0
+	var best_center_distance := INF
+	for gy in 9:
+		for gx in 9:
+			if hits[gy][gx] != uid:
+				continue
+			var clearance := INF
+			for yy in 9:
+				for xx in 9:
+					if hits[yy][xx] <= 0 or hits[yy][xx] == uid:
+						continue
+					var dx := gx - xx
+					var dy := gy - yy
+					clearance = minf(clearance, float(dx * dx + dy * dy))
+			var center_distance := float((gx - 4) * (gx - 4) + (gy - 4) * (gy - 4))
+			if clearance > best_clearance or (is_equal_approx(clearance, best_clearance) and center_distance < best_center_distance):
+				best = Vector2i(gx, gy)
+				best_clearance = clearance
+				best_center_distance = center_distance
+	if best.x < 0:
+		return Vector2(-1, -1)
+	var local := -size * 0.5 + size * Vector2((best.x + 0.5) / 9.0, (best.y + 0.5) / 9.0)
+	return center + local.rotated(rotation)
 
 
 ## 初始撒落使用原左侧安全区，按当前旋转计算四角的安全范围。
@@ -262,6 +289,31 @@ func nearby_same_at(snack_id: String, origin: Vector2, radius: float = GATHER_RA
 			return int(a["uid"]) < int(b["uid"])
 		return da < db)
 	return result
+
+
+## 单击迁移只寻找自身附近之外的同款；被遮挡目标仍可成为落点。
+## 返回最近目标的 UID 与中心，距离相同按 UID 决定，保证固定种子和回放结果一致。
+func find_click_target(uid: int) -> Dictionary:
+	var source := get_item(uid)
+	if source.is_empty() or source.get("picked", false):
+		return {}
+	var origin := Vector2(float(source["x"]), float(source["y"]))
+	var best_uid := -1
+	var best_point := Vector2.ZERO
+	var best_distance := INF
+	for candidate in items:
+		var candidate_uid := int(candidate["uid"])
+		if candidate_uid == uid or candidate.get("picked", false) or String(candidate["snack"]) != String(source["snack"]):
+			continue
+		var point := Vector2(float(candidate["x"]), float(candidate["y"]))
+		var distance := origin.distance_squared_to(point)
+		if distance <= GATHER_RADIUS * GATHER_RADIUS:
+			continue
+		if distance < best_distance or (is_equal_approx(distance, best_distance) and candidate_uid < best_uid):
+			best_uid = candidate_uid
+			best_point = point
+			best_distance = distance
+	return {} if best_uid < 0 else {"uid": best_uid, "point": best_point}
 
 
 func get_item(uid: int) -> Dictionary:

@@ -59,13 +59,14 @@ static func build_order(cfg: Dictionary, snacks_db: Dictionary, rng: GameRNG) ->
 	var items: Array = []
 	for snack_id in chosen:
 		var giant := giant_ids.has(snack_id)
-		var count := rng.randi_range(1, 2) if giant else rng.randi_range(1, 20)
+		var count := rng.randi_range(1, 2) if giant else rng.randi_range(1, 10)
 		if not giant and not bool(cfg.get("random_quantity", true)):
-			count = clampi(int(cfg.get("fixed_quantity", 2)), 1, 20)
+			count = clampi(int(cfg.get("fixed_quantity", 2)), 1, 10)
+		var product_scale := float(snacks_db.get(snack_id, {}).get("product_scale", 1.0))
 		for _index in count:
 			items.append({
 				"snack": snack_id, "size": 3 if giant else 1, "giant": giant,
-				"gift": false, "package_scale": package_scale,
+				"gift": false, "package_scale": package_scale, "product_scale": product_scale,
 			})
 	rng.shuffle(items)
 	var features: Array = cfg.get("features", [])
@@ -116,6 +117,7 @@ static func generate(cfg: Dictionary, snacks_db: Dictionary, rng: GameRNG, manif
 		item["gift"] = bool(item.get("gift", false))
 		item["picked"] = false
 		item["package_scale"] = float(item.get("package_scale", 1.0))
+		item["product_scale"] = float(item.get("product_scale", 1.0))
 		item["x"] = 0.0
 		item["y"] = 0.0
 		item["rot"] = 0.0

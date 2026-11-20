@@ -33,6 +33,20 @@ func _check_geometry(db: ConfigDB) -> void:
 	_expect(BasketModel.hit_size({"size": 3, "package_scale": 1.5}) == Vector2(288, 246), "giant size-3 geometry is explicit and scaled once")
 	_expect(BasketModel.hit_size({"size": 3, "package_scale": 2.0}) == Vector2(384, 328), "test size slider supports giant 2.0x geometry")
 	_expect(BasketModel.is_giant({"size": 3, "giant": false}), "size 3 is the canonical giant classification")
+	var product_sized := BasketModel.hit_size({"size": 1, "package_scale": 1.5, "product_scale": 0.8})
+	_expect(product_sized.is_equal_approx(Vector2(144, 124.8)), "product scale multiplies both geometry axes once")
+	_expect(is_equal_approx(product_sized.x / 120.0, product_sized.y / 104.0), "product scaling preserves the original aspect ratio")
+	_expect(BasketModel.hit_size({"size": 1, "package_scale": 1.5}).is_equal_approx(Vector2(180, 156)), "missing product scale keeps legacy fixture geometry")
+	var scales_valid := true
+	var minimum_scale := INF
+	var maximum_scale := -INF
+	for snack in db.snacks.values():
+		var scale := float(snack.get("product_scale", 0.0))
+		scales_valid = scales_valid and scale >= 0.5 and scale <= 1.2
+		minimum_scale = minf(minimum_scale, scale)
+		maximum_scale = maxf(maximum_scale, scale)
+	_expect(scales_valid and db.snacks.size() == 40, "all 40 products carry an explicit reasonable relative size")
+	_expect(minimum_scale <= 0.55 and maximum_scale >= 1.15 and maximum_scale - minimum_scale >= 0.59, "real package metadata produces clearly different snack sizes")
 
 	var a := GameState.new_game(db, 2, {}, 71, _fixed_options(2, 2, 0, 1.0))
 	var b := GameState.new_game(db, 2, {}, 71, _fixed_options(2, 2, 0, 2.0))
@@ -50,15 +64,17 @@ func _check_level_curve(db: ConfigDB) -> void:
 	var curve_ok := true
 	var pools_ok := true
 	for level_id in range(1, 21):
+		var expected := mini(level_id + 2, 10)
 		var cfg := db.runtime_config(level_id, {})
-		curve_ok = curve_ok and int(cfg["snack_kinds"]) == level_id + 1
-		pools_ok = pools_ok and cfg["pool"].size() >= level_id + 1
-	_expect(curve_ok, "all 20 levels increase from 2 through 21 snack kinds")
-	_expect(pools_ok, "every expanded kind count has enough unique configured snacks")
+		curve_ok = curve_ok and int(cfg["snack_kinds"]) == expected
+		pools_ok = pools_ok and cfg["pool"].size() >= expected
+	_expect(curve_ok, "levels increase from 3 through 10 kinds, then remain capped at 10")
+	_expect(pools_ok, "every capped kind count has enough unique configured snacks")
 	for level_id in [1, 2, 20]:
+		var expected := mini(level_id + 2, 10)
 		var state := GameState.new_game(db, level_id, {}, 42, _fixed_options(level_id))
-		_expect(_kind_counts(state.basket.items).size() == level_id + 1, "level %d materializes exactly %d unique kinds" % [level_id, level_id + 1])
-		_expect(state.total_items == (level_id + 1) * 2 * state.customers_total, "level %d fixed-order total includes every customer" % level_id)
+		_expect(_kind_counts(state.basket.items).size() == expected, "level %d materializes exactly %d unique kinds" % [level_id, expected])
+		_expect(state.total_items == expected * 2 * state.customers_total, "level %d fixed-order total includes every customer" % level_id)
 
 	var options := _fixed_options(3, 2, 2, 1.75)
 	options["preset"] = "relax"
@@ -68,6 +84,8 @@ func _check_level_curve(db: ConfigDB) -> void:
 	_expect(db.preset_name == "challenge" and JSON.stringify(options) == options_before, "test overrides do not mutate shared preset or input options")
 	_expect(is_equal_approx(float(cfg["package_scale"]), 1.75) and int(cfg["fixed_quantity"]) == 2 and int(cfg["giant_kinds"]) == 2, "order overrides survive preset and upgrade merging")
 	_expect(is_equal_approx(float(cfg["patience"]), 0.0) and int(cfg["tray_slots"]) == 9, "selected test preset and upgrades still apply without changing level kind count")
+	var clamped := db.runtime_config(2, {}, _fixed_options(2, 11, 0))
+	_expect(int(clamped["fixed_quantity"]) == 10, "fixed quantity 11 is finally clamped to the new maximum of 10")
 
 
 func _check_random_orders(db: ConfigDB) -> void:
@@ -84,13 +102,14 @@ func _check_random_orders(db: ConfigDB) -> void:
 			var giant := BasketModel.is_giant(entries[0])
 			if giant:
 				giant_kinds += 1
-			limits_ok = limits_ok and entries.size() >= 1 and entries.size() <= (2 if giant else 20)
+			limits_ok = limits_ok and entries.size() >= 1 and entries.size() <= (2 if giant else 10)
 			for item in entries:
 				scale_ok = scale_ok and is_equal_approx(float(item["package_scale"]), 1.5)
+				scale_ok = scale_ok and is_equal_approx(float(item["product_scale"]), float(db.snacks[snack_id]["product_scale"]))
 				limits_ok = limits_ok and bool(item["giant"]) == giant
 		limits_ok = limits_ok and giant_kinds >= 0 and giant_kinds <= 2
-	_expect(limits_ok, "each customer independently keeps normal quantities in 1..20 and giants at 0..2 kinds x 1..2 items")
-	_expect(scale_ok, "every production order item carries the default 1.5 package scale")
+	_expect(limits_ok, "each customer independently keeps normal quantities in 1..10 and giants at 0..2 kinds x 1..2 items")
+	_expect(scale_ok, "every order item carries its global package scale and product-specific relative size")
 	_expect(state.total_items == manifest_total, "random level total is the sum of all lightweight manifests")
 	_expect(JSON.stringify(state._orders[0]) != JSON.stringify(state._orders[1]), "different customers do not reuse one sampled quantity set")
 
@@ -110,7 +129,7 @@ func _check_random_orders(db: ConfigDB) -> void:
 	for _customer in range(1, small.customers_total):
 		small._next_customer()
 		actual_total += small.basket.items.size()
-	_expect(actual_total == small.total_items and actual_total == 18, "lazy materialization exactly matches the precomputed 3-customer total")
+	_expect(actual_total == small.total_items and actual_total == 24, "lazy materialization exactly matches the precomputed 3-customer total")
 
 	var repeat_a := GameState.new_game(db, 2, {}, 2026, options)
 	var repeat_b := GameState.new_game(db, 2, {}, 2026, options)
@@ -153,7 +172,7 @@ func _check_fixed_and_gifts(db: ConfigDB) -> void:
 
 
 func _check_maximum_order(db: ConfigDB) -> void:
-	var cfg := db.runtime_config(20, {}, _fixed_options(20, 20, 2, 2.0))
+	var cfg := db.runtime_config(20, {}, _fixed_options(20, 10, 2, 2.0))
 	var manifest := LevelGenerator.build_order(cfg, db.snacks, GameRNG.new(991))
 	var started := Time.get_ticks_msec()
 	var basket := LevelGenerator.generate(cfg, db.snacks, GameRNG.new(555), manifest)
@@ -163,13 +182,16 @@ func _check_maximum_order(db: ConfigDB) -> void:
 	for entries in counts.values():
 		if BasketModel.is_giant(entries[0]):
 			giant_kinds += 1
-	_expect(counts.size() == 21 and giant_kinds == 2, "maximum fixture contains 21 kinds and exactly two giant kinds")
-	_expect(manifest.size() >= 382 and manifest.size() <= 384 and basket.items.size() == manifest.size(), "maximum 2.0x order places every one of its 382..384 items")
+	_expect(counts.size() == 10 and giant_kinds == 2, "maximum fixture contains 10 kinds and exactly two giant kinds")
+	_expect(manifest.size() >= 82 and manifest.size() <= 84 and basket.items.size() == manifest.size(), "maximum 2.0x order places every one of its 82..84 items")
 	var bounds_ok := true
 	for item in basket.items:
 		for corner in BasketModel.corners_at(item, float(item["x"]), float(item["y"])):
 			bounds_ok = bounds_ok and BasketModel.TABLE_BOUNDS.grow(0.02).has_point(corner)
 	_expect(bounds_ok, "every maximum-order rotated package corner remains on the initial table")
+	var plain_cfg := db.runtime_config(20, {}, _fixed_options(20, 10, 0, 1.5))
+	var plain_manifest := LevelGenerator.build_order(plain_cfg, db.snacks, GameRNG.new(992))
+	_expect(plain_manifest.size() == 100, "ten ordinary kinds at fixed quantity ten produce the exact 100-item ceiling")
 	print("maximum focused order: items=", basket.items.size(), " layout_ms=", elapsed)
 
 	var placed := basket.items.slice(0, 60)

@@ -135,7 +135,8 @@ func end_drag(home_layer: int) -> void:
 	z_index = home_layer
 
 
-func return_to(target: Vector2, home_layer: int, home_rotation: float, duration: float = 0.24) -> void:
+func return_to(target: Vector2, home_layer: int, home_rotation: float, duration: float = 0.24,
+		arc_height: float = 0.0, on_complete: Callable = Callable()) -> void:
 	flying = true
 	interactive = false
 	_area.input_pickable = false
@@ -146,11 +147,18 @@ func return_to(target: Vector2, home_layer: int, home_rotation: float, duration:
 	_tween.parallel().tween_property(sprite, "scale", _base_scale, duration)
 	_tween.parallel().tween_property(_shadow, "scale", _base_scale, duration)
 	_tween.parallel().tween_property(_area, "scale", Vector2.ONE, duration)
+	if arc_height > 0.0:
+		_arc = create_tween()
+		_arc.tween_property(sprite, "position:y", -arc_height, duration * 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		_arc.tween_property(sprite, "position:y", 0.0, duration * 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	_tween.tween_callback(func():
 		flying = false
 		interactive = true
 		_area.input_pickable = false
-		z_index = home_layer)
+		z_index = home_layer
+		# 完成回调放在最后；回调触发称重飞行后，旧动画不能再覆盖其状态。
+		if on_complete.is_valid():
+			on_complete.call())
 
 
 func _kill_tweens() -> void:
@@ -163,7 +171,7 @@ func _kill_tweens() -> void:
 	sprite.position.y = 0.0
 
 
-## 桌面单击只给本地触觉反馈，不改变核心位置、层序或称重状态。
+## 无远处同款时的桌面单击反馈，不改变核心位置、层序或称重状态。
 func tap_bounce() -> void:
 	if flying:
 		return

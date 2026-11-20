@@ -119,6 +119,6 @@ func runtime_config(level_id: int, upgrades_owned: Dictionary, options: Dictiona
 	order_options.erase("seed_value")
 	cfg.merge(order_options, true)
 	cfg["package_scale"] = clampf(float(cfg.get("package_scale", 1.5)), 1.0, 2.0)
-	cfg["fixed_quantity"] = clampi(int(cfg.get("fixed_quantity", 2)), 1, 20)
+	cfg["fixed_quantity"] = clampi(int(cfg.get("fixed_quantity", 2)), 1, 10)
 	cfg["giant_kinds"] = clampi(int(cfg.get("giant_kinds", -1)), -1, 2)
 	return cfg
