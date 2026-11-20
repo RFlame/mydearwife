@@ -6,6 +6,7 @@ var app = null
 var level_id: int = 1
 var result: Dictionary = {}
 var next_button: Button = null
+var retry_button: Button = null
 
 
 static func create(p_app, p_level: int, p_result: Dictionary) -> ResultScreen:
@@ -32,7 +33,7 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 22)
 	panel.add_child(box)
 
-	box.add_child(UIKit.make_label("营业完成！", 48, UIKit.RED))
+	box.add_child(UIKit.make_label("测试完成 · 不写存档" if result.get("test_mode", false) else "营业完成！", 38 if result.get("test_mode", false) else 48, UIKit.RED))
 	var stars := ""
 	for i in 3:
 		stars += "★" if i < int(result.get("stars", 0)) else "☆"
@@ -45,13 +46,21 @@ func _ready() -> void:
 	box.add_child(UIKit.make_label("小费 +%d" % int(result.get("tip", 0)), 28))
 	box.add_child(UIKit.make_label("金币合计 +%d" % int(result.get("coins", 0)), 36, Color("B8860B")))
 
-	if level_id < app.db.level_count():
+	if result.get("test_mode", false):
+		next_button = UIKit.make_button("返回测试设置", UIKit.BLUE, UIKit.CREAM, 30)
+		next_button.pressed.connect(func(): app.show_test(result.get("test_config", {})))
+		box.add_child(next_button)
+	elif level_id < app.db.level_count():
 		next_button = UIKit.make_button("下一关 →", UIKit.RED, UIKit.CREAM, 34)
 		next_button.pressed.connect(func(): app.start_level(level_id + 1))
 		box.add_child(next_button)
-	var retry := UIKit.make_button("再玩一次", UIKit.GREEN, UIKit.CREAM, 28)
-	retry.pressed.connect(func(): app.start_level(level_id))
-	box.add_child(retry)
+	retry_button = UIKit.make_button("按此配置再试" if result.get("test_mode", false) else "再玩一次", UIKit.GREEN, UIKit.CREAM, 28)
+	retry_button.pressed.connect(func():
+		if result.get("test_mode", false):
+			app.start_test(result.get("test_config", {}))
+		else:
+			app.start_level(level_id))
+	box.add_child(retry_button)
 	var home := UIKit.make_button("返回店铺", UIKit.WOOD, UIKit.CREAM, 28)
 	home.pressed.connect(func(): app.show_home())
 	box.add_child(home)

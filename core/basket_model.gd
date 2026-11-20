@@ -17,7 +17,17 @@ var items: Array = []  # {uid, snack, size, blind, revealed, gift, picked, x, y,
 
 
 static func hit_size(item: Dictionary) -> Vector2:
-	return Vector2(152, 120) if int(item.get("size", 1)) == 2 else Vector2(120, 104)
+	var base := Vector2(120, 104)
+	match int(item.get("size", 1)):
+		2:
+			base = Vector2(152, 120)
+		3:
+			base = Vector2(192, 164)
+	return base * float(item.get("package_scale", 1.0))
+
+
+static func is_giant(item: Dictionary) -> bool:
+	return int(item.get("size", 1)) == 3
 
 
 static func item_rect(item: Dictionary) -> Rect2:

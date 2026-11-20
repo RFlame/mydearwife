@@ -28,6 +28,7 @@ var db: ConfigDB
 var cfg: Dictionary
 var rng: GameRNG
 var layout_rng: GameRNG
+var order_rng: GameRNG
 var customer_rng: GameRNG
 var basket: BasketModel
 var tray: TrayModel
@@ -48,6 +49,9 @@ var return_count: int = 0
 var _extra_slot_used: bool = false
 var _freeze_used: bool = false
 var _customer_ids: Array = []
+var _orders: Array = []
+var test_mode: bool = false
+var test_options: Dictionary = {}
 var batch_queue: Array = []
 var active_batch: Array = []
 var active_combo: int = 0
@@ -58,21 +62,40 @@ var batch_serial: int = 0
 var weighed_serial: int = 0
 
 
-static func new_game(p_db: ConfigDB, level_id: int, upgrades: Dictionary, seed_value: int = 0) -> GameState:
+static func new_game(p_db: ConfigDB, level_id: int, upgrades: Dictionary, seed_value: int = 0, options: Dictionary = {}) -> GameState:
 	var g := GameState.new()
 	g.db = p_db
-	g.cfg = p_db.runtime_config(level_id, upgrades)
+	g.test_options = options.duplicate(true)
+	g.test_mode = bool(options.get("test_mode", false))
+	g.cfg = p_db.runtime_config(level_id, upgrades, options)
 	g.rng = GameRNG.new(seed_value)
 	g.layout_rng = GameRNG.new(seed_value)
+	g.order_rng = GameRNG.new(seed_value + 104729)
 	g.customer_rng = GameRNG.new(seed_value + 7919)
 	g.tray = TrayModel.new(int(g.cfg["tray_slots"]))
 	g.combo = ComboSystem.new(float(g.cfg["combo_window_sec"]))
 	g.magnet_charges = int(g.cfg["magnet_charges"])
 	g.customers_total = int(g.cfg.get("customers", 1))
 	g._build_customer_queue()
+	g._build_orders()
 	g.clock = PatienceClock.new(0.0)
 	g._next_customer()
 	return g
+
+
+func _build_orders() -> void:
+	_orders.clear()
+	total_items = 0
+	for _index in customers_total:
+		var order := LevelGenerator.build_order(cfg, db.snacks, order_rng)
+		_orders.append(order)
+		total_items += order.size()
+
+
+func current_order_size() -> int:
+	if customer_index <= 0 or customer_index > _orders.size():
+		return 0
+	return _orders[customer_index - 1].size()
 
 
 func level_id() -> int:
@@ -138,7 +161,7 @@ func upcoming_customers() -> Array:
 
 func _next_customer() -> void:
 	customer_index += 1
-	basket = LevelGenerator.generate(cfg, db.snacks, layout_rng)
+	basket = LevelGenerator.generate(cfg, db.snacks, layout_rng, _orders[customer_index - 1])
 	batch_queue.clear()
 	active_batch.clear()
 	active_combo = 0
@@ -146,8 +169,6 @@ func _next_customer() -> void:
 	batch_timer = 0.0
 	batch_duration = 0.0
 	tray.clear()
-	if customer_index == 1:
-		total_items = basket.remaining() * customers_total
 	var profile := current_customer()
 	clock.reset(float(cfg.get("patience", 0.0)) * float(profile.get("patience_mult", 1.0)))
 	# 新顾客：恢复基础台位、耐心与一次性道具，连击不可跨客延续。
@@ -447,7 +468,7 @@ func hint_snack() -> String:
 
 
 func settle() -> Dictionary:
-	return ScoreSystem.settle({
+	var result := ScoreSystem.settle({
 		"completed": state == "complete",
 		"coins_earned": coins_earned,
 		"best_combo": combo.best,
@@ -461,6 +482,9 @@ func settle() -> Dictionary:
 		"return_count": return_count,
 		"tip_mult": float(cfg.get("tip_mult", 1.0)),
 	})
+	result["test_mode"] = test_mode
+	result["test_config"] = test_options.duplicate(true)
+	return result
 
 
 func _fail(reason: String) -> void:

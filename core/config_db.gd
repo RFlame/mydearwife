@@ -41,8 +41,9 @@ func set_preset(p_name: String) -> void:
 		preset_name = p_name
 
 
-func get_preset() -> Dictionary:
-	var p: Dictionary = difficulty.get("presets", {}).get(preset_name, {}).duplicate(true)
+func get_preset(p_name: String = "") -> Dictionary:
+	var selected := preset_name if p_name.is_empty() else p_name
+	var p: Dictionary = difficulty.get("presets", {}).get(selected, {}).duplicate(true)
 	p["tray_slots"] = int(p.get("tray_slots", 7))
 	p["patience_scale"] = float(p.get("patience_scale", 1.0))
 	p["combo_window_sec"] = float(p.get("combo_window_sec", 3.0))
@@ -75,12 +76,12 @@ func snack_ids_for_categories(category_ids: Array) -> Array:
 	return result
 
 
-## 合并出本局运行时配置：关卡 × 难度预设 × 设备升级 × 顾客修正。
-func runtime_config(level_id: int, upgrades_owned: Dictionary) -> Dictionary:
+## 合并出本局运行时配置：关卡 × 难度预设 × 设备升级 × 顾客修正 × 显式订单覆盖。
+func runtime_config(level_id: int, upgrades_owned: Dictionary, options: Dictionary = {}) -> Dictionary:
 	var cfg := get_level(level_id)
 	if cfg.is_empty():
 		return cfg
-	var preset := get_preset()
+	var preset := get_preset(String(options.get("preset", "")))
 	var tray_lv := int(upgrades_owned.get("tray", 1))
 	var magnet_lv := int(upgrades_owned.get("magnet", 1))
 	var scale_lv := int(upgrades_owned.get("scale", 1))
@@ -106,4 +107,18 @@ func runtime_config(level_id: int, upgrades_owned: Dictionary) -> Dictionary:
 			cfg["tip_mult"] = 1.5
 		"rich":
 			cfg["tip_mult"] = 2.0
+	# 订单覆盖最后合并且深拷贝，测试预设不会改写共享难度或存档设置。
+	cfg["random_quantity"] = true
+	cfg["fixed_quantity"] = 2
+	cfg["giant_kinds"] = -1
+	cfg["package_scale"] = 1.5
+	var order_options := options.duplicate(true)
+	order_options.erase("preset")
+	order_options.erase("test_mode")
+	order_options.erase("level_id")
+	order_options.erase("seed_value")
+	cfg.merge(order_options, true)
+	cfg["package_scale"] = clampf(float(cfg.get("package_scale", 1.5)), 1.0, 2.0)
+	cfg["fixed_quantity"] = clampi(int(cfg.get("fixed_quantity", 2)), 1, 20)
+	cfg["giant_kinds"] = clampi(int(cfg.get("giant_kinds", -1)), -1, 2)
 	return cfg

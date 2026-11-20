@@ -40,6 +40,20 @@ func start_level(level_id: int, seed_value: int = 0) -> void:
 	_switch(GameScreen.create(self, level_id, seed_value))
 
 
+func show_test(options: Dictionary = {}) -> void:
+	_switch(TestScreen.create(self, options))
+
+
+func start_test(options: Dictionary) -> void:
+	var test_options := options.duplicate(true)
+	test_options["test_mode"] = true
+	var level_id := clampi(int(test_options.get("level_id", 1)), 1, db.level_count())
+	var seed_value := int(test_options.get("seed_value", 0))
+	if seed_value == 0 and _web_smoke_enabled:
+		seed_value = _web_smoke_seed
+	_switch(GameScreen.create(self, level_id, seed_value, test_options))
+
+
 func show_result(level_id: int, result: Dictionary) -> void:
 	_switch(ResultScreen.create(self, level_id, result))
 
@@ -109,11 +123,27 @@ func _web_smoke_snapshot(_args: Array) -> String:
 	var data := {"page": "other"}
 	if current is HomeScreen:
 		data["page"] = "home"
+		data["test_entry"] = _rect_snapshot(current.test_button.get_global_rect())
+	elif current is TestScreen:
+		data = {"page": "test", "test_options": current.current_options(),
+			"start": _rect_snapshot(current.start_button.get_global_rect()),
+			"controls": {
+				"level": _rect_snapshot(current.level_option.get_global_rect()),
+				"preset": _rect_snapshot(current.preset_option.get_global_rect()),
+				"random": _rect_snapshot(current.random_check.get_global_rect()),
+				"quantity": _rect_snapshot(current.quantity_slider.get_global_rect()),
+				"size": _rect_snapshot(current.size_slider.get_global_rect()),
+				"giant": _rect_snapshot(current.giant_option.get_global_rect()),
+			}}
 	elif current is ResultScreen:
 		data["page"] = "result"
+		data["test_mode"] = current.result.get("test_mode", false)
+		data["test_config"] = current.result.get("test_config", {})
 		if current.next_button:
 			data["next"] = {"x": current.next_button.global_position.x + current.next_button.size.x * 0.5,
 				"y": current.next_button.global_position.y + current.next_button.size.y * 0.5}
+		if current.retry_button:
+			data["retry"] = _rect_snapshot(current.retry_button.get_global_rect())
 	elif current is CustomerCollectionScreen:
 		var found := 0
 		for customer_id in db.customers:
@@ -129,7 +159,9 @@ func _web_smoke_snapshot(_args: Array) -> String:
 			if point.x >= 0:
 				var global := gs.table_view.to_global(point)
 				available.append({"uid": int(item["uid"]), "snack": String(item["snack"]),
-					"size": int(item["size"]), "weight": db.snack_weight(String(item["snack"])) * int(item.get("size", 1)),
+					"size": int(item["size"]), "giant": BasketModel.is_giant(item),
+					"package_scale": float(item.get("package_scale", 1.0)),
+					"weight": db.snack_weight(String(item["snack"])) * int(item.get("size", 1)),
 					"table_x": float(item["x"]), "table_y": float(item["y"]), "x": global.x, "y": global.y})
 		var table_items: Array = []
 		for item in st.basket.items:
@@ -147,6 +179,8 @@ func _web_smoke_snapshot(_args: Array) -> String:
 					corners.append({"x": corner.x, "y": corner.y})
 			var node: SnackView = gs.snack_nodes.get(uid)
 			table_items.append({"uid": uid, "snack": String(item["snack"]),
+				"size": int(item["size"]), "giant": BasketModel.is_giant(item),
+				"package_scale": float(item.get("package_scale", 1.0)),
 				"table_x": center.x, "table_y": center.y,
 				"x": global_center.x, "y": global_center.y,
 				"rotation": node.rotation if node else 0.0, "flying": node.flying if node else true,
@@ -172,8 +206,18 @@ func _web_smoke_snapshot(_args: Array) -> String:
 			for item in batch["items"]:
 				queued_items.append({"uid": int(item["uid"]), "snack": String(item["snack"])})
 			queued_batches.append({"snack": String(batch["snack"]), "combo": int(batch["combo"]), "items": queued_items})
+		var giant_ids := {}
+		var giant_items := 0
+		for item in st.basket.items:
+			if BasketModel.is_giant(item):
+				giant_ids[String(item["snack"])] = true
+				giant_items += 1
 		data = {
 			"page": "game", "state": st.state, "level": gs.level_id,
+			"test_mode": st.test_mode, "test_config": st.test_options,
+			"package_scale": float(st.cfg.get("package_scale", 1.0)),
+			"current_order_items": st.current_order_size(),
+			"giant_kinds": giant_ids.size(), "giant_items": giant_items,
 			"customer": st.customer_index, "customers": st.customers_total,
 			"customer_id": st.current_customer_id(), "customer_name": String(st.current_customer().get("name", "顾客")),
 			"customer_discovered": save.customers_discovered.has(st.current_customer_id()),
@@ -226,6 +270,11 @@ func _web_smoke_snapshot(_args: Array) -> String:
 			"free_slots": st.tray.free_slots(), "available": available, "tray": entries,
 			"pos_mode": gs._pos_mode_label.text,
 		}
+	data["save_summary"] = {
+		"coins": save.coins, "stars": save.stars.duplicate(true), "unlocked": save.unlocked,
+		"discovered": save.discovered.size(), "customers_discovered": save.customers_discovered.size(),
+		"preset": String(save.settings.get("preset", "standard")),
+	}
 	return JSON.stringify(data)
 
 

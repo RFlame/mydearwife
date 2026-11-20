@@ -3,6 +3,7 @@ extends Control
 ## 店铺主界面：标题 / 开始营业 / 选关 / 升级 / 图鉴 / 设置。
 
 var app = null
+var test_button: Button = null
 
 
 static func create(p_app) -> HomeScreen:
@@ -58,6 +59,12 @@ func _ready() -> void:
 		btn.disabled = not unlocked
 		btn.pressed.connect(func(): app.start_level(lid))
 		grid.add_child(btn)
+
+	test_button = UIKit.make_button("玩法测试 · 难度 / 数量 / 包装大小", UIKit.BLUE, UIKit.CREAM, 26)
+	test_button.position = Vector2(130, 972)
+	test_button.size = Vector2(460, 76)
+	test_button.pressed.connect(func(): app.show_test())
+	add_child(test_button)
 
 	var upgrades_btn := UIKit.make_button("设备升级", UIKit.BLUE, UIKit.CREAM, 24)
 	upgrades_btn.position = Vector2(40, 1130)

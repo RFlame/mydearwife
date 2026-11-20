@@ -14,7 +14,9 @@ func _run() -> void:
 	var app = load("res://game/main.tscn").instantiate()
 	get_tree().root.add_child(app)
 	await get_tree().create_timer(0.25).timeout
-	app.start_level(2, _safe_seed(app, 2))
+	var seed_value := _safe_seed(app, 2)
+	app.start_test({"level_id": 2, "preset": "standard", "random_quantity": false,
+		"fixed_quantity": 2, "package_scale": 1.5, "giant_kinds": 0, "seed_value": seed_value})
 	var gs: GameScreen = app.current
 	var st: GameState = gs.state
 	_expect(gs._basket_phase == "arrive", "basket starts in arrive phase")
@@ -139,7 +141,9 @@ func _run() -> void:
 
 func _safe_seed(app, level_id: int) -> int:
 	for candidate in range(42, 200):
-		var generated := GameState.new_game(app.db, level_id, {}, candidate)
+		var generated := GameState.new_game(app.db, level_id, {}, candidate, {"test_mode": true,
+			"preset": "standard", "random_quantity": false, "fixed_quantity": 2,
+			"package_scale": 1.5, "giant_kinds": 0})
 		if BasketModel.find_ready_clusters(generated.basket.items).is_empty():
 			return candidate
 	_expect(false, "a deterministic non-ready initial layout exists")
@@ -193,7 +197,9 @@ func _check_generated_bounds(app) -> void:
 	for level in app.db.levels:
 		var all_safe := true
 		for sample_seed in [42, 99, 2026]:
-			var generated: GameState = GameState.new_game(app.db, int(level["id"]), {}, sample_seed)
+			var generated: GameState = GameState.new_game(app.db, int(level["id"]), {}, sample_seed, {
+				"test_mode": true, "preset": "standard", "random_quantity": false,
+				"fixed_quantity": 2, "package_scale": 1.5, "giant_kinds": 2})
 			for item in generated.basket.items:
 				all_safe = all_safe and _item_corners_inside(item)
 		_expect(all_safe, "level %d generated corners stay above the cashier aisle for three seeds" % int(level["id"]))

@@ -21,6 +21,8 @@ const SCALE_RESIDUE_TIME := 0.16
 var app = null
 var level_id: int = 1
 var seed_value: int = 0
+var test_options: Dictionary = {}
+var test_mode: bool = false
 var state: GameState
 
 var basket_view: BasketView
@@ -74,20 +76,23 @@ var _hint_uids: Array = []
 var _tex_cache := {}
 
 
-static func create(p_app, p_level: int, p_seed: int = 0) -> GameScreen:
+static func create(p_app, p_level: int, p_seed: int = 0, p_options: Dictionary = {}) -> GameScreen:
 	var s := GameScreen.new()
 	s.app = p_app
 	s.level_id = p_level
 	s.seed_value = p_seed
+	s.test_options = p_options.duplicate(true)
+	s.test_mode = bool(p_options.get("test_mode", false))
 	return s
 
 
 func _ready() -> void:
-	state = GameState.new_game(app.db, level_id, app.save.upgrades, seed_value)
+	state = GameState.new_game(app.db, level_id, app.save.upgrades, seed_value, test_options)
 	_build_background()
 	_build_hud()
 	_build_customer()
-	app.save.meet_customer(state.current_customer_id())
+	if not test_mode:
+		app.save.meet_customer(state.current_customer_id())
 	_build_counter()
 	_build_cashier()
 	_build_basket_area()
@@ -218,7 +223,7 @@ func _build_hud() -> void:
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 8)
 	rows.add_child(top)
-	_coin_label = UIKit.make_label("¥ %d" % app.save.coins, 22)
+	_coin_label = UIKit.make_label("试玩" if test_mode else "¥ %d" % app.save.coins, 22)
 	_coin_label.custom_minimum_size.x = 100
 	top.add_child(_coin_label)
 	var level_label := UIKit.make_label("第 %d 关" % level_id, 22, UIKit.RED)
@@ -416,7 +421,9 @@ func _spawn_basket_items() -> void:
 		node.hide()
 		basket_view.add_snack(node.uid, item, _texture_for(item), index)
 		snack_nodes[node.uid] = node
-		if item.get("gift", false):
+		if BasketModel.is_giant(item):
+			node.set_badge("巨")
+		elif item.get("gift", false):
 			node.set_badge(String(app.db.snacks.get(item["snack"], {}).get("name", "礼")).left(1))
 		index += 1
 
@@ -604,7 +611,8 @@ func _on_customer_served(_idx: int) -> void:
 
 func _on_customer_started(_idx: int, customer_id: String) -> void:
 	customer_view.setup(state.current_customer(), state.customer_index)
-	app.save.meet_customer(customer_id)
+	if not test_mode:
+		app.save.meet_customer(customer_id)
 	_refresh_queue()
 	_clear_hint()
 	if state.customer_index > 1:
@@ -751,8 +759,9 @@ func _refresh_table_layers() -> void:
 func _on_completed(result: Dictionary) -> void:
 	SFX.play("complete")
 	SFX.play("coins")
-	app.save.add_result(level_id, result, state.cfg.get("pool", []))
-	app.save.save()
+	if not test_mode:
+		app.save.add_result(level_id, result, state.cfg.get("pool", []))
+		app.save.save()
 	await get_tree().create_timer(1.1).timeout
 	app.show_result(level_id, result)
 
@@ -864,9 +873,16 @@ func _show_modal(msg: String, primary_text: String) -> void:
 	panel.position = Vector2(360, 600) - panel.get_combined_minimum_size() * 0.5
 	primary.pressed.connect(func():
 		if state.state == "failed":
-			app.start_level(level_id)
+			if test_mode:
+				app.start_test(test_options)
+			else:
+				app.start_level(level_id)
 		else:
 			_paused = false
 			dim.queue_free()
 			panel.queue_free())
-	home.pressed.connect(func(): app.show_home())
+	home.pressed.connect(func():
+		if test_mode:
+			app.show_test(test_options)
+		else:
+			app.show_home())

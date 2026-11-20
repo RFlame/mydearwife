@@ -15,15 +15,16 @@ func _run() -> void:
 	var app = load("res://game/main.tscn").instantiate()
 	get_tree().root.add_child(app)
 	await get_tree().create_timer(0.25).timeout
-	var seed_value := _safe_seed(app, 3)
-	app.start_level(3, seed_value)
+	var seed_value := _safe_seed(app, 2)
+	app.start_test({"level_id": 2, "preset": "standard", "random_quantity": false,
+		"fixed_quantity": 2, "package_scale": 1.5, "giant_kinds": 0, "seed_value": seed_value})
 	var gs: GameScreen = app.current
 	await _wait_table_ready(gs)
 	var st: GameState = gs.state
 	_expect(st.batch_serial == 0 and st.basket.remaining() == 6, "safe seed leaves every snack on the table after pouring")
 
 	var groups := _spread_pairs(gs)
-	_expect(groups.size() == 3, "level 3 fixture contains three complete snack pairs")
+	_expect(groups.size() == 3, "level 2 test fixture contains three complete snack pairs")
 	var ids := groups.keys()
 	ids.sort()
 	var a: Array = groups[ids[0]]
@@ -110,7 +111,9 @@ func _has_snack(ready: Array, snack_id: String) -> bool:
 
 func _safe_seed(app, level_id: int) -> int:
 	for candidate in range(42, 200):
-		var generated := GameState.new_game(app.db, level_id, {}, candidate)
+		var generated := GameState.new_game(app.db, level_id, {}, candidate, {"test_mode": true,
+			"preset": "standard", "random_quantity": false, "fixed_quantity": 2,
+			"package_scale": 1.5, "giant_kinds": 0})
 		if BasketModel.find_ready_clusters(generated.basket.items).is_empty():
 			return candidate
 	_expect(false, "a deterministic non-ready initial layout exists")
