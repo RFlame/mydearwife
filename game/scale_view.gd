@@ -5,6 +5,7 @@ extends Node2D
 var _led: Label
 var _weight_tween: Tween
 var _rolling := false
+var _led_value := 0.0
 
 
 func _ready() -> void:
@@ -21,33 +22,36 @@ func _ready() -> void:
 
 func reset() -> void:
 	_rolling = false
+	_led_value = 0.0
 	if _weight_tween and _weight_tween.is_valid():
 		_weight_tween.kill()
 	_weight_tween = null
 	_led.text = "0 g"
 
 
-## 拣入/退货时立即显示理论总重；结算滚动期间的空台刷新不打断本次定格演出。
+## 空闲兼容接口不中断自动批次；连续批次由 show_weight 从当前值续接。
 func set_live_weight(weight: int) -> void:
-	if weight == 0 and _rolling:
+	if _rolling:
 		return
-	_rolling = false
 	if _weight_tween and _weight_tween.is_valid():
 		_weight_tween.kill()
 	_weight_tween = null
-	_led.text = "%d g" % weight
+	_set_led(float(weight))
 
 
-func show_weight(weight: int, duration: float) -> void:
+func show_weight(weight: int, duration: float, with_beep: bool = true) -> void:
 	_rolling = true
 	if _weight_tween and _weight_tween.is_valid():
 		_weight_tween.kill()
 	_weight_tween = create_tween()
-	_weight_tween.tween_method(_set_led, 0.0, float(weight), duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_weight_tween.tween_method(_set_led, _led_value, float(weight), duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	_weight_tween.tween_callback(func():
 		_rolling = false
-		SFX.play("beep"))
+		_led_value = float(weight)
+		if with_beep:
+			SFX.play("beep"))
 
 
 func _set_led(v: float) -> void:
-	_led.text = "%d g" % int(v)
+	_led_value = v
+	_led.text = "%d g" % int(roundf(v))

@@ -146,7 +146,9 @@ func _web_smoke_snapshot(_args: Array) -> String:
 					var corner: Vector2 = gs.table_view.to_global(center + Vector2(half.x * sx, half.y * sy).rotated(angle))
 					corners.append({"x": corner.x, "y": corner.y})
 			var node: SnackView = gs.snack_nodes.get(uid)
-			table_items.append({"uid": uid, "x": global_center.x, "y": global_center.y,
+			table_items.append({"uid": uid, "snack": String(item["snack"]),
+				"table_x": center.x, "table_y": center.y,
+				"x": global_center.x, "y": global_center.y,
 				"rotation": node.rotation if node else 0.0, "flying": node.flying if node else true,
 				"global_scale": node.global_scale.x if node else 0.0,
 				"parent_table": node.get_parent() == gs.table_view if node else false, "corners": corners})
@@ -161,30 +163,22 @@ func _web_smoke_snapshot(_args: Array) -> String:
 				var node: SnackView = gs.snack_nodes[uid]
 				entries.append({"uid": uid, "snack": String(item["snack"]),
 					"x": node.global_position.x, "y": node.global_position.y, "flying": node.flying})
-		var zone_snapshots: Array = []
-		for zone_index in ZoneModel.ZONE_COUNT:
-			var zone_items: Array = []
-			for item in st.zones.sections[zone_index]:
-				var uid := int(item["uid"])
-				var node: SnackView = gs.snack_nodes.get(uid)
-				zone_items.append({"uid": uid, "snack": String(item["snack"]),
-					"x": node.global_position.x if node else 0.0,
-					"y": node.global_position.y if node else 0.0,
-					"flying": node.flying if node else true,
-					"interactive": node.interactive if node else false})
-			var zone_rect: Rect2 = GameScreen.ZONE_RECTS[zone_index]
-			zone_snapshots.append({"index": zone_index, "items": zone_items,
-				"count": zone_items.size(), "queued": st.zones.queue.has(zone_index),
-				"active": st.zones.active_zone == zone_index,
-				"complete": st.zones.complete_snack(zone_index, st.basket),
-				"rect": _rect_snapshot(Rect2(gs.table_view.to_global(zone_rect.position), zone_rect.size * gs.table_view.scale))})
+		var active_items: Array = []
+		for item in st.active_batch:
+			active_items.append({"uid": int(item["uid"]), "snack": String(item["snack"])})
+		var queued_batches: Array = []
+		for batch in st.batch_queue:
+			var queued_items: Array = []
+			for item in batch["items"]:
+				queued_items.append({"uid": int(item["uid"]), "snack": String(item["snack"])})
+			queued_batches.append({"snack": String(batch["snack"]), "combo": int(batch["combo"]), "items": queued_items})
 		data = {
 			"page": "game", "state": st.state, "level": gs.level_id,
 			"customer": st.customer_index, "customers": st.customers_total,
 			"customer_id": st.current_customer_id(), "customer_name": String(st.current_customer().get("name", "顾客")),
 			"customer_discovered": save.customers_discovered.has(st.current_customer_id()),
 			"switching": gs._switching_customer, "pouring": gs._pouring,
-			"basket_phase": gs._basket_phase, "drag_uid": gs._drag_uid, "last_double_count": gs._last_double_count,
+			"basket_phase": gs._basket_phase, "drag_uid": gs._drag_uid,
 			"basket_rotation": gs.basket_view.side_tilt if is_instance_valid(gs.basket_view) else 0.0,
 			"basket_tilt": gs.basket_view.side_tilt if is_instance_valid(gs.basket_view) else 0.0,
 			"basket_x": gs.basket_view.position.x if is_instance_valid(gs.basket_view) else 0.0,
@@ -197,10 +191,11 @@ func _web_smoke_snapshot(_args: Array) -> String:
 			"basket_present": is_instance_valid(gs.basket_view) and gs.basket_view.is_visible_in_tree(),
 			"basket_alpha": gs.basket_view.modulate.a if is_instance_valid(gs.basket_view) else 0.0,
 			"live_basket_count": live_baskets, "table_items": table_items,
-			"zones": zone_snapshots, "zone_queue": st.zones.queue.duplicate(),
-			"zone_active": st.zones.active_zone, "zone_pump_running": gs._zone_pump_running,
-			"auto_settle": gs._auto_settle, "manual_settle_requested": gs._manual_settle_requested,
-			"manual_settle_seq": gs._manual_settle_seq,
+			"active_batch": active_items, "batch_queue": queued_batches,
+			"batch_phase": st.batch_phase, "batch_timer": st.batch_timer,
+			"batch_duration": st.batch_duration, "batch_serial": st.batch_serial,
+			"weighed_serial": st.weighed_serial,
+			"price_tags": gs._price_tags.size(), "price_tag_serial": gs._price_tag_serial,
 			"table_tap": {"seq": gs._table_tap_seq, "uid": gs._last_table_tap_uid},
 			"queue_ids": st.upcoming_customers(), "tools": _legacy_tool_buttons(gs, []),
 			"layout": {
@@ -227,10 +222,9 @@ func _web_smoke_snapshot(_args: Array) -> String:
 			"remaining": st.basket.remaining(), "total_items": st.total_items,
 			"bagged_items": st.bagged_items, "bagged_groups": st.bagged_groups,
 			"tray_weight": st.tray_weight(), "led": gs.scale_view._led.text,
+			"led_value": gs.scale_view._led_value, "led_rolling": gs.scale_view._rolling,
 			"free_slots": st.tray.free_slots(), "available": available, "tray": entries,
-			"checkout": {"x": gs._checkout_btn.global_position.x + gs._checkout_btn.size.x * 0.5,
-				"y": gs._checkout_btn.global_position.y + gs._checkout_btn.size.y * 0.5,
-				"enabled": not gs._checkout_btn.disabled},
+			"pos_mode": gs._pos_mode_label.text,
 		}
 	return JSON.stringify(data)
 

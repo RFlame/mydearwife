@@ -1,8 +1,9 @@
 extends Node
-## 四角集货聚焦测试：真实拖动/点击 + 双区域同时集齐的串行自动称重。
+## 自由聚堆聚焦测试：旋转包装 SAT、完整连通堆、异款阻断与真实松手输入。
 
 var _failures: Array = []
 var _checks := 0
+var _pointer := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -10,157 +11,144 @@ func _ready() -> void:
 
 
 func _run() -> void:
+	_check_geometry()
 	var app = load("res://game/main.tscn").instantiate()
 	get_tree().root.add_child(app)
 	await get_tree().create_timer(0.25).timeout
-	app.start_level(1, 42)
+	var seed_value := _safe_seed(app, 3)
+	app.start_level(3, seed_value)
 	var gs: GameScreen = app.current
 	await _wait_table_ready(gs)
 	var st: GameState = gs.state
+	_expect(st.batch_serial == 0 and st.basket.remaining() == 6, "safe seed leaves every snack on the table after pouring")
 
-	_expect(gs.zone_views.size() == 4, "four sorting zones are created")
-	var zones_inside := true
-	var zones_disjoint := true
-	var zones_upper := true
-	for i in GameScreen.ZONE_RECTS.size():
-		var rect: Rect2 = GameScreen.ZONE_RECTS[i]
-		zones_inside = zones_inside and BasketModel.DRAG_BOUNDS.encloses(rect)
-		zones_upper = zones_upper and rect.end.y <= 316.0
-		for j in range(i + 1, GameScreen.ZONE_RECTS.size()):
-			zones_disjoint = zones_disjoint and not rect.intersects(GameScreen.ZONE_RECTS[j])
-	_expect(zones_inside, "all four zones stay inside the expanded drag-safe tabletop")
-	_expect(zones_disjoint, "corner drop regions do not overlap")
-	_expect(zones_upper, "all four sorting circles move into two upper rows")
-	var ellipse_hit_ok := true
-	var corner_miss_ok := true
-	for rect in GameScreen.ZONE_RECTS:
-		ellipse_hit_ok = ellipse_hit_ok and gs._zone_at_table_point(rect.get_center()) >= 0
-		for corner in [rect.position, Vector2(rect.end.x, rect.position.y), rect.position + Vector2(0, rect.size.y), rect.end]:
-			corner_miss_ok = corner_miss_ok and not GameScreen.zone_contains_point(0, corner) and not GameScreen.zone_contains_point(1, corner) and not GameScreen.zone_contains_point(2, corner) and not GameScreen.zone_contains_point(3, corner)
-	_expect(ellipse_hit_ok, "each elliptical zone accepts its center")
-	_expect(corner_miss_ok, "bounding-box corners outside every ellipse are not drop targets")
-	_expect(not gs._checkout_btn.disabled and gs._auto_settle, "settlement mode button starts enabled with automatic settlement on")
-	await _shot("zones_ready")
-
-	# 桌面单击只跳动，不进入区域或称重台。
-	var first: Dictionary = st.basket.top_items()[0]
-	var first_uid := int(first["uid"])
-	var snack_id := String(first["snack"])
-	var original := Vector2(float(first["x"]), float(first["y"]))
-	var first_node: SnackView = gs.snack_nodes[first_uid]
-	var tap_before := first_node.tap_seq
-	await _click(_exposed_point(gs, first_uid))
-	_expect(first_node.tap_seq == tap_before + 1 and gs._table_tap_seq == 1, "real table click triggers local tap feedback")
-	_expect(st.basket.remaining() == 4 and st.tray.is_empty() and st.zones.is_clear(), "table click does not pick, sort or settle")
-	_expect(Vector2(float(first["x"]), float(first["y"])) == original, "table click leaves the logical position unchanged")
-	var bounce_seen := false
-	for sample in 8:
-		bounce_seen = bounce_seen or first_node.sprite.position.y < -2.0
-		await get_tree().create_timer(0.02).timeout
-	_expect(bounce_seen, "clicked snack visibly hops in place")
-	await get_tree().create_timer(0.18).timeout
-	_expect(absf(first_node.sprite.position.y) < 0.01, "tap bounce returns to its original sprite height")
-
-	# 真实拖入、区内单击退回。
-	await _drag_available_snack(gs, snack_id, 0)
-	await get_tree().create_timer(0.34).timeout
-	_expect(st.zones.sections[0].size() == 1 and st.basket.remaining() == 3, "real drag drops one snack into the first zone")
-	_expect(st.bagged_items == 0 and st.zones.queue.is_empty(), "partial snack kind does not auto-settle")
-	await _shot("zones_single")
-	if st.zones.sections[0].size() != 1:
-		print("drag failure: sections=", st.zones.sections, " remaining=", st.basket.remaining())
-		_finish(st)
-		return
-	var zoned_uid := int(st.zones.sections[0][0]["uid"])
-	_expect(GameScreen.zone_contains_point(0, gs.table_view.to_local(gs.snack_nodes[zoned_uid].global_position)), "zoned snack lands inside the central ellipse rather than its bounding corner")
-	await _click(gs.snack_nodes[zoned_uid].global_position)
-	await get_tree().create_timer(0.32).timeout
-	_expect(st.zones.sections[0].is_empty() and st.basket.remaining() == 4, "real zone click returns the snack to the table")
-	_expect(not st.basket.get_item(zoned_uid).get("picked", true), "returned snack becomes table-pickable again")
-	var returned := st.basket.get_item(zoned_uid)
-	_expect(Vector2(float(returned["x"]), float(returned["y"])) == original, "zone return restores the pre-drag table position")
-	_expect(gs.snack_nodes[zoned_uid].global_position.distance_to(gs.table_view.to_global(original)) < 1.0, "returned snack visual reaches its original table position")
-
-	# 同款两件全部进入同一区后，无需 POS 点击即称重。
+	var groups := _spread_pairs(gs)
+	_expect(groups.size() == 3, "level 3 fixture contains three complete snack pairs")
+	var ids := groups.keys()
+	ids.sort()
+	var a: Array = groups[ids[0]]
+	var b: Array = groups[ids[1]]
+	var c: Array = groups[ids[2]]
 	var weighed: Array = []
 	st.group_weighed.connect(func(id: String, group: Array, _price: Dictionary, _weight: int):
-		weighed.append({"snack": id, "count": group.size(), "msec": Time.get_ticks_msec()}))
-	await _drag_available_snack(gs, snack_id, 0)
-	await get_tree().create_timer(0.32).timeout
-	await _drag_available_snack(gs, snack_id, 0)
-	_expect(st.zones.queue == [0], "complete kind queues its zone exactly once")
-	_expect(st.bagged_items == 0, "arrival flight finishes before auto weighing")
-	_expect(gs._manual_settle_seq == 0 and gs._auto_settle, "automatic mode does not require a manual settlement command")
-	var completed := await _wait_weighed(weighed, 1, 5.0)
-	_expect(completed, "complete zone automatically weighs without a POS command")
-	_expect(weighed.size() == 1 and weighed[0]["snack"] == snack_id and weighed[0]["count"] == 2, "auto settlement contains the whole snack kind")
-	_expect(st.bagged_items == 2 and st.bagged_groups == 1 and st.basket.remaining() == 2, "progress updates after the complete automatic batch")
-	_expect(st.zones.sections[0].is_empty() and st.tray.is_empty(), "settled zone and scale clear for further sorting")
-	await _shot("zones_auto")
+		weighed.append({"snack": id, "count": group.size()}))
 
-	# 构造混放与跨区分拆：两者都不能误触发；退货后两个区域在同一等待窗内集齐。
-	app.start_level(3, 42)
-	gs = app.current
-	await _wait_table_ready(gs)
-	st = gs.state
-	var by_snack := {}
-	var points := [Vector2(110, 340), Vector2(300, 340), Vector2(490, 340), Vector2(110, 700), Vector2(300, 700), Vector2(490, 700)]
-	for index in st.basket.items.size():
-		var item: Dictionary = st.basket.items[index]
-		st.move_item(int(item["uid"]), points[index], true)
-		if not by_snack.has(item["snack"]):
-			by_snack[item["snack"]] = []
-		by_snack[item["snack"]].append(item)
-	var ids := by_snack.keys()
-	ids.sort()
-	var a: Array = by_snack[ids[0]]
-	var b: Array = by_snack[ids[1]]
-	_expect(a.size() == 2 and b.size() == 2, "level 3 fixture has two complete pairs")
-	_expect(st.place_in_zone(int(a[0]["uid"]), 0), "first A enters mixed zone")
-	_expect(st.place_in_zone(int(b[0]["uid"]), 0), "first B enters the same mixed zone")
-	_expect(st.place_in_zone(int(a[1]["uid"]), 0), "second A completes A count but zone remains mixed")
-	_expect(st.place_in_zone(int(b[1]["uid"]), 1), "second B is split across another zone")
-	_expect(st.zones.queue.is_empty() and st.bagged_items == 0, "mixed zone and cross-zone split never auto-settle")
-	_expect(st.return_zone_item(int(b[0]["uid"])), "returning the mixed B unlocks a uniform complete A zone")
-	_expect(st.zones.queue == [0], "return reevaluates completeness and queues A")
-	_expect(st.place_in_zone(int(b[0]["uid"]), 1), "returned B can join its pair while A is waiting")
-	_expect(st.zones.queue == [0, 1], "two simultaneously ready zones retain deterministic queue order")
-	_expect(not st.return_zone_item(int(a[0]["uid"])), "queued zone cannot return an item during the race window")
+	# 最后一段鼠标移动已经到位，但尚未松手时不能提前扫描或脱手。
+	var uid := int(a[0]["uid"])
+	var target := Vector2(float(a[1]["x"]) + 138.0, float(a[1]["y"]))
+	var start_local := st.basket.exposed_point(uid)
+	var origin := Vector2(float(a[0]["x"]), float(a[0]["y"]))
+	var release_pointer := gs.table_view.to_global(target + start_local - origin)
+	await _press(gs.table_view.to_global(start_local))
+	await _move(release_pointer)
+	_expect(gs._dragging and st.batch_serial == 0 and st.basket.remaining() == 6, "drag motion alone never scans or removes a ready cluster")
+	await _release(release_pointer)
+	_expect(st.active_batch.size() == 2 and String(st.active_batch[0]["snack"]) == ids[0], "real release gathers the complete connected pair")
+	_expect(st.basket.remaining() == 4 and st.bagged_items == 0 and st.batch_phase == "flying", "release starts one flight before its settlement")
+	_expect(gs.snack_nodes[int(a[0]["uid"])].flying and gs.snack_nodes[int(a[1]["uid"])].flying, "both actual table nodes fly into the scale")
+	var completed := await _wait_weighed(weighed, 1, 2.0)
+	_expect(completed and st.bagged_items == 2 and st.batch_phase == "idle", "the released pair weighs automatically without a POS command")
+	await _shot("cluster_release")
 
-	weighed.clear()
-	st.group_weighed.connect(func(id: String, group: Array, _price: Dictionary, _weight: int):
-		weighed.append({"snack": id, "count": group.size(), "msec": Time.get_ticks_msec()}))
-	var uniform_only := true
-	var active_seen: Array = []
-	var guard := 0
-	while weighed.size() < 2 and guard < 250:
-		guard += 1
-		if not st.tray.is_empty():
-			uniform_only = uniform_only and st.tray.is_uniform()
-		if st.zones.active_zone >= 0 and not active_seen.has(st.zones.active_zone):
-			active_seen.append(st.zones.active_zone)
-		await get_tree().create_timer(0.02).timeout
-	_expect(weighed.size() == 2, "both queued zones automatically finish")
-	if weighed.size() == 2:
-		_expect(weighed[0]["snack"] == String(ids[0]) and weighed[1]["snack"] == String(ids[1]), "queued batches weigh in FIFO order")
-		_expect(int(weighed[1]["msec"]) - int(weighed[0]["msec"]) >= 600, "successive scale occupations have a real time gap")
-	_expect(active_seen == [0, 1], "only one queued zone owns the scale at a time")
-	_expect(uniform_only, "concurrent zone input never mixes an active scale batch")
-	_expect(st.bagged_items == 4 and st.basket.remaining() == 2 and st.state == "playing", "other table kinds remain playable after both batches")
-	_expect(st.zones.queue.is_empty() and st.zones.active_zone == -1 and st.tray.is_empty(), "queue drains cleanly without duplicate settlement")
-	await _shot("zones_queue")
+	# B 已完整连通，但 C1 位于 28px 异款隔离边界；移开 C1 后必须重扫整张桌。
+	_place(st, gs, int(b[0]["uid"]), Vector2(140, 350))
+	_place(st, gs, int(b[1]["uid"]), Vector2(278, 350))
+	_place(st, gs, int(c[0]["uid"]), Vector2(140, 482))
+	_expect(st.scan_clusters() == 0 and st.active_batch.is_empty(), "a foreign package at the 28px boundary blocks a complete pair")
+	_expect(st.basket.remaining() == 4 and st.bagged_items == 2, "blocked snacks stay draggable on the table")
+	await _shot("cluster_blocked")
+	var foreign_uid := int(c[0]["uid"])
+	await _drag(_exposed_point(gs, foreign_uid), gs.table_view.to_global(Vector2(450, 560)))
+	_expect(st.active_batch.size() == 2 and String(st.active_batch[0]["snack"]) == ids[1], "moving a foreign snack away rescans and releases the blocked pair")
+	completed = await _wait_weighed(weighed, 2, 2.0)
+	_expect(completed and st.bagged_items == 4 and st.basket.remaining() == 2, "only the unblocked pair settles; the split foreign kind remains")
+	_expect(st.batch_queue.is_empty() and st.tray.is_empty(), "completed real-input batches leave no stale queue or scale entries")
 	_finish(st)
 
 
-func _drag_available_snack(gs: GameScreen, snack_id: String, zone_index: int) -> void:
-	for item in gs.state.basket.top_items():
-		if String(item["snack"]) != snack_id:
-			continue
-		var start := _exposed_point(gs, int(item["uid"]))
-		if start.x >= 0:
-			await _drag(start, gs.table_view.to_global(GameScreen.ZONE_RECTS[zone_index].get_center()))
-			return
-	_expect(false, "an exposed %s is available for dragging" % snack_id)
+func _check_geometry() -> void:
+	var near_a := _item(1, "a", Vector2(100, 100))
+	var near_b := _item(2, "a", Vector2(238, 100))
+	_expect(BasketModel.packages_near(near_a, near_b, 18.0), "packages exactly 18px apart are connected")
+	near_b["x"] = 238.02
+	_expect(not BasketModel.packages_near(near_a, near_b, 18.0), "packages beyond the 18px surface gap are disconnected")
+	near_b["x"] = 238.0
+	var chain := [near_a, near_b, _item(3, "a", Vector2(376, 100))]
+	_expect(BasketModel.find_ready_clusters(chain).size() == 1, "transitive same-kind connections form one complete component")
+	chain[2]["x"] = 500.0
+	_expect(BasketModel.find_ready_clusters(chain).is_empty(), "a split same-kind component never auto-settles")
+
+	var boundary := [near_a.duplicate(), near_b.duplicate(), _item(3, "b", Vector2(100, 232))]
+	_expect(not _has_snack(BasketModel.find_ready_clusters(boundary), "a"), "a foreign package exactly 28px away blocks the pair")
+	boundary[2]["y"] = 232.02
+	_expect(_has_snack(BasketModel.find_ready_clusters(boundary), "a"), "moving just beyond the 28px surface gap unblocks the pair")
+
+	var gift_a := _item(10, "gift_kind", Vector2(260, 300), 45.0, 2)
+	var gift_b := _item(11, "gift_kind", Vector2(260, 300) + Vector2(0, 138.02).rotated(deg_to_rad(45.0)), 45.0, 2)
+	_expect(not BasketModel.packages_near(gift_a, gift_b, 18.0), "rotated large gift boxes use SAT rather than an axis-aligned box")
+	gift_b["x"] = 260.0 + Vector2(0, 138.0).rotated(deg_to_rad(45.0)).x
+	gift_b["y"] = 300.0 + Vector2(0, 138.0).rotated(deg_to_rad(45.0)).y
+	_expect(BasketModel.find_ready_clusters([gift_a, gift_b]).size() == 1, "the rotated gift pair connects at the exact package-surface threshold")
+
+	var covered_model := BasketModel.new()
+	covered_model.items = [_item(20, "covered", Vector2(200, 200)), _item(21, "covered", Vector2(200, 200))]
+	_expect(covered_model.exposure(20) < 0.12, "the lower fixture is genuinely covered")
+	_expect(BasketModel.find_ready_clusters(covered_model.items).size() == 1, "covered same-kind items still participate in cluster completeness")
+
+
+func _item(uid: int, snack: String, point: Vector2, rot: float = 0.0, size: int = 1) -> Dictionary:
+	return {"uid": uid, "snack": snack, "size": size, "blind": false, "revealed": true,
+		"gift": size == 2, "picked": false, "x": point.x, "y": point.y, "rot": rot, "layer": uid}
+
+
+func _has_snack(ready: Array, snack_id: String) -> bool:
+	for group in ready:
+		if String(group["snack"]) == snack_id:
+			return true
+	return false
+
+
+func _safe_seed(app, level_id: int) -> int:
+	for candidate in range(42, 200):
+		var generated := GameState.new_game(app.db, level_id, {}, candidate)
+		if BasketModel.find_ready_clusters(generated.basket.items).is_empty():
+			return candidate
+	_expect(false, "a deterministic non-ready initial layout exists")
+	return 42
+
+
+func _spread_pairs(gs: GameScreen) -> Dictionary:
+	var groups := {}
+	for item in gs.state.basket.items:
+		if not groups.has(item["snack"]):
+			groups[item["snack"]] = []
+		groups[item["snack"]].append(item)
+	var ids := groups.keys()
+	ids.sort()
+	var points := [Vector2(130, 180), Vector2(130, 560), Vector2(520, 400), Vector2(520, 680), Vector2(800, 400), Vector2(800, 680)]
+	var index := 0
+	for snack_id in ids:
+		for item in groups[snack_id]:
+			item["rot"] = 0.0
+			gs.snack_nodes[int(item["uid"])].rotation = 0.0
+			_place(gs.state, gs, int(item["uid"]), points[index])
+			index += 1
+	gs._refresh_table_layers()
+	return groups
+
+
+func _place(st: GameState, gs: GameScreen, uid: int, point: Vector2) -> void:
+	st.move_item(uid, point, true)
+	gs.snack_nodes[uid].global_position = gs.table_view.to_global(point)
+
+
+func _wait_table_ready(gs: GameScreen) -> void:
+	var guard := 0
+	while (gs._switching_customer or is_instance_valid(gs.basket_view)) and guard < 160:
+		guard += 1
+		await get_tree().create_timer(0.05).timeout
+	_expect(not gs._switching_customer and not is_instance_valid(gs.basket_view), "basket pour finishes before cluster input")
+	await get_tree().create_timer(0.08).timeout
 
 
 func _wait_weighed(events: Array, count: int, timeout: float) -> bool:
@@ -171,68 +159,54 @@ func _wait_weighed(events: Array, count: int, timeout: float) -> bool:
 	return events.size() >= count
 
 
-func _wait_table_ready(gs: GameScreen) -> void:
-	var guard := 0
-	while (gs._switching_customer or is_instance_valid(gs.basket_view)) and guard < 160:
-		guard += 1
-		await get_tree().create_timer(0.05).timeout
-	_expect(not gs._switching_customer and not is_instance_valid(gs.basket_view), "basket pour finishes before zone input")
-	await get_tree().create_timer(0.08).timeout
-
-
 func _exposed_point(gs: GameScreen, uid: int) -> Vector2:
 	var point := gs.state.basket.exposed_point(uid)
 	return gs.table_view.to_global(point) if point.x >= 0 else Vector2(-1, -1)
 
 
-func _click(pos: Vector2) -> void:
-	if pos.x < 0:
-		_expect(false, "real input has a valid click point")
-		return
+func _press(pos: Vector2) -> void:
+	_expect(pos.x >= 0, "real drag starts at an exposed package point")
+	_pointer = pos
 	var motion := InputEventMouseMotion.new()
 	motion.position = pos
 	motion.global_position = pos
 	Input.parse_input_event(motion)
-	for pressed in [true, false]:
-		var event := InputEventMouseButton.new()
-		event.position = pos
-		event.global_position = pos
-		event.button_index = MOUSE_BUTTON_LEFT
-		event.pressed = pressed
-		Input.parse_input_event(event)
+	var event := InputEventMouseButton.new()
+	event.position = pos
+	event.global_position = pos
+	event.button_index = MOUSE_BUTTON_LEFT
+	event.pressed = true
+	Input.parse_input_event(event)
 	await get_tree().process_frame
 
 
-func _drag(start: Vector2, end: Vector2) -> void:
-	if start.x < 0:
-		_expect(false, "real drag has an exposed start point")
-		return
-	var motion := InputEventMouseMotion.new()
-	motion.position = start
-	motion.global_position = start
-	Input.parse_input_event(motion)
-	var pressed := InputEventMouseButton.new()
-	pressed.position = start
-	pressed.global_position = start
-	pressed.button_index = MOUSE_BUTTON_LEFT
-	pressed.pressed = true
-	Input.parse_input_event(pressed)
-	await get_tree().process_frame
+func _move(end: Vector2) -> void:
+	var start := _pointer
 	for i in range(1, 9):
 		var point := start.lerp(end, float(i) / 8.0)
+		_pointer = point
 		var move := InputEventMouseMotion.new()
 		move.position = point
 		move.global_position = point
 		move.button_mask = MOUSE_BUTTON_MASK_LEFT
 		Input.parse_input_event(move)
 		await get_tree().create_timer(0.025).timeout
-	var released := InputEventMouseButton.new()
-	released.position = end
-	released.global_position = end
-	released.button_index = MOUSE_BUTTON_LEFT
-	released.pressed = false
-	Input.parse_input_event(released)
+
+
+func _release(end: Vector2) -> void:
+	var event := InputEventMouseButton.new()
+	event.position = end
+	event.global_position = end
+	event.button_index = MOUSE_BUTTON_LEFT
+	event.pressed = false
+	Input.parse_input_event(event)
 	await get_tree().process_frame
+
+
+func _drag(start: Vector2, end: Vector2) -> void:
+	await _press(start)
+	await _move(end)
+	await _release(end)
 
 
 func _expect(cond: bool, message: String) -> void:

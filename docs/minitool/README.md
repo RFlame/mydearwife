@@ -7,7 +7,7 @@
 - 完整审计：`tools/audit_minitool.py`
 - 构建目录：`build/minitool/`
 - 待上传 ZIP：`build/snack-dingdong-minitool.zip`
-- Godot 原版继续保留；小工具不是对 Godot Web 导出物的重新压缩。本文的自由聚堆规则只适用于小工具版，不表示 Godot 原版四区玩法已同步修改。
+- Godot 原版继续保留；小工具不是对 Godot Web 导出物的重新压缩。Godot 原版与小工具版现均已采用下述自由聚堆、异款阻断和零冷却连续称重规则。
 
 ```bash
 python3 -I tools/build_minitool.py

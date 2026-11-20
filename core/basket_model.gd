@@ -10,6 +10,8 @@ const DRAG_BOUNDS := Rect2(16, -92, 888, 892)
 const DRAG_SCALE_BLOCK := Rect2(580, -152, 320, 450)
 const DRAG_SCALE_GAP := 4.0
 const GATHER_RADIUS := 220.0
+const CLUSTER_GAP := 18.0
+const FOREIGN_GAP := 28.0
 
 var items: Array = []  # {uid, snack, size, blind, revealed, gift, picked, x, y, rot, layer}
 
@@ -22,6 +24,94 @@ static func item_rect(item: Dictionary) -> Rect2:
 	var size := hit_size(item)
 	return Rect2(Vector2(float(item["x"]), float(item["y"])) - size * 0.5, size)
 
+
+static func padded_corners_at(item: Dictionary, x: float, y: float, padding: float) -> Array:
+	var half := hit_size(item) * 0.5 + Vector2.ONE * padding
+	var center := Vector2(x, y)
+	var angle := deg_to_rad(float(item.get("rot", 0.0)))
+	var corners: Array = []
+	for local in [Vector2(-half.x, -half.y), Vector2(half.x, -half.y), Vector2(half.x, half.y), Vector2(-half.x, half.y)]:
+		corners.append(center + local.rotated(angle))
+	return corners
+
+
+static func corners_at(item: Dictionary, x: float, y: float) -> Array:
+	return padded_corners_at(item, x, y, 0.0)
+
+
+static func _polygons_intersect(a: Array, b: Array) -> bool:
+	for polygon in [a, b]:
+		for i in polygon.size():
+			var edge: Vector2 = polygon[(i + 1) % polygon.size()] - polygon[i]
+			var axis := Vector2(-edge.y, edge.x)
+			var min_a := INF
+			var max_a := -INF
+			var min_b := INF
+			var max_b := -INF
+			for point: Vector2 in a:
+				var projection := point.dot(axis)
+				min_a = minf(min_a, projection)
+				max_a = maxf(max_a, projection)
+			for point: Vector2 in b:
+				var projection := point.dot(axis)
+				min_b = minf(min_b, projection)
+				max_b = maxf(max_b, projection)
+			if max_a <= min_b or max_b <= min_a:
+				return false
+	return true
+
+
+static func packages_near(a: Dictionary, b: Dictionary, gap: float) -> bool:
+	var expanded := padded_corners_at(a, float(a["x"]), float(a["y"]), gap + 0.001)
+	return _polygons_intersect(expanded, corners_at(b, float(b["x"]), float(b["y"])))
+
+
+static func find_ready_clusters(items: Array) -> Array:
+	var remaining := items.filter(func(item): return not item.get("picked", false))
+	remaining.sort_custom(func(a, b): return int(a["uid"]) < int(b["uid"]))
+	var by_snack := {}
+	for item in remaining:
+		var snack_id := String(item["snack"])
+		if not by_snack.has(snack_id):
+			by_snack[snack_id] = []
+		by_snack[snack_id].append(item)
+	var visited := {}
+	var ready: Array = []
+	for seed in remaining:
+		var seed_uid := int(seed["uid"])
+		if visited.has(seed_uid):
+			continue
+		var snack_id := String(seed["snack"])
+		var same_kind: Array = by_snack[snack_id]
+		var component: Array = []
+		var stack: Array = [seed]
+		visited[seed_uid] = true
+		while not stack.is_empty():
+			var current: Dictionary = stack.pop_back()
+			component.append(current)
+			for candidate in same_kind:
+				var uid := int(candidate["uid"])
+				if visited.has(uid) or not packages_near(current, candidate, CLUSTER_GAP):
+					continue
+				visited[uid] = true
+				stack.append(candidate)
+		if component.size() != same_kind.size():
+			continue
+		var blocked := false
+		for member in component:
+			for foreign in remaining:
+				if String(foreign["snack"]) == snack_id:
+					continue
+				if packages_near(member, foreign, FOREIGN_GAP):
+					blocked = true
+					break
+			if blocked:
+				break
+		if not blocked:
+			component.sort_custom(func(a, b): return int(a["uid"]) < int(b["uid"]))
+			ready.append({"snack": snack_id, "items": component})
+	ready.sort_custom(func(a, b): return int(a["items"][0]["uid"]) < int(b["items"][0]["uid"]))
+	return ready
 
 ## 与 SnackView 的旋转 RectangleShape2D 共用同一套局部坐标。
 static func contains_point(item: Dictionary, point: Vector2, padding: float = 0.0) -> bool:

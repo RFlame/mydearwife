@@ -1,6 +1,6 @@
 class_name UpgradeScreen
 extends Control
-## 设备升级：永久称重台容量 / 电子秤动画速度。
+## 设备升级：电子秤动画速度；旧台位等级仅保留存档兼容。
 
 var app = null
 
@@ -33,7 +33,7 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 26)
 	add_child(box)
 
-	for key in ["tray", "scale"]:
+	for key in ["scale"]:
 		box.add_child(_make_card(key))
 
 	var back := UIKit.make_button("返回店铺", UIKit.WOOD, UIKit.CREAM, 28)

@@ -1,6 +1,6 @@
 extends Node
 ## 本轮聚焦验证：godot --path . tests/counter_smoke.tscn
-## 只覆盖左侧篮口无翻转撒落、底部过道及受影响的真实四区输入。
+## 只覆盖左侧篮口撒落、底部过道及受影响的自由拖动/单击输入。
 
 var _failures: Array = []
 var _checks := 0
@@ -14,7 +14,7 @@ func _run() -> void:
 	var app = load("res://game/main.tscn").instantiate()
 	get_tree().root.add_child(app)
 	await get_tree().create_timer(0.25).timeout
-	app.start_level(2, 42)
+	app.start_level(2, _safe_seed(app, 2))
 	var gs: GameScreen = app.current
 	var st: GameState = gs.state
 	_expect(gs._basket_phase == "arrive", "basket starts in arrive phase")
@@ -97,6 +97,7 @@ func _run() -> void:
 		scales_restored = scales_restored and node.scale.is_equal_approx(Vector2.ONE)
 	_expect(scales_restored, "poured snacks restore standard table scale and matching hit areas")
 
+	_spread_pairs(gs)
 	_check_layout(gs)
 	_check_generated_bounds(app)
 	_check_drag_aisle_boundary(st)
@@ -105,59 +106,65 @@ func _run() -> void:
 	await get_tree().create_timer(0.22).timeout
 	_expect(absf(gs.cashier_view.rig.position.y - idle_before) > 0.05, "cashier idle animation produces visible breathing motion")
 
+	# 使用位于 (130,180) 的确定夹具，单击不聚堆，拖到右下也只改变位置。
 	var pick_item: Dictionary = {}
-	var pick_point := Vector2(-1, -1)
 	for candidate in st.basket.top_items():
-		pick_point = _exposed_point(gs, int(candidate["uid"]))
-		if pick_point.x >= 0:
+		if Vector2(float(candidate["x"]), float(candidate["y"])).distance_to(Vector2(130, 180)) < 0.1:
 			pick_item = candidate
 			break
-	_expect(not pick_item.is_empty(), "an exposed snack is available for focused real-input testing")
+	_expect(not pick_item.is_empty(), "the spread fixture exposes its upper-left snack")
 	if pick_item.is_empty():
 		_finish(st)
 		return
+	var pick_point := _exposed_point(gs, int(pick_item["uid"]))
 	var action_before: int = gs.cashier_view.action_seq
 	var tap_before: int = gs.snack_nodes[int(pick_item["uid"])].tap_seq
 	await _click(pick_point)
-	_expect(st.tray.is_empty() and st.basket.remaining() == 6 and st.zones.is_clear(), "real table click only bounces without picking or zoning")
+	_expect(st.tray.is_empty() and st.basket.remaining() == 6 and st.batch_serial == 0, "real table click only bounces without gathering or weighing")
 	_expect(gs.snack_nodes[int(pick_item["uid"])].tap_seq == tap_before + 1, "real table click triggers the local hop")
-	_expect(gs.cashier_view.action_seq == action_before and gs._auto_settle and gs._manual_settle_seq == 0, "table bounce does not trigger cashier sorting or change settlement mode")
+	_expect(gs.cashier_view.action_seq == action_before, "table bounce does not trigger cashier sorting")
 
-	action_before = gs.cashier_view.action_seq
-	await _drag(pick_point, gs.table_view.to_global(GameScreen.ZONE_RECTS[0].get_center()))
-	_expect(st.zones.sections[0].size() == 1 and st.basket.remaining() == 5, "real drag places exactly one snack into a corner zone")
-	_expect(gs.cashier_view.action_seq > action_before, "real zoning triggers cashier arm action")
-	var saw_sort_motion := false
-	for sample in 20:
-		saw_sort_motion = saw_sort_motion or gs.cashier_view.right_arm.rotation < -0.12
-		await get_tree().create_timer(0.02).timeout
-	_expect(saw_sort_motion, "cashier sorting arm visibly moves during its action window")
-	_expect(not gs._checkout_btn.disabled and gs._auto_settle and st.bagged_items == 0, "incomplete zone waits with the settlement mode button available")
-	await _click(gs._checkout_btn.global_position + gs._checkout_btn.size * 0.5)
-	_expect(not gs._auto_settle and st.bagged_items == 0 and st.zones.sections[0].size() == 1, "mode button disables automatic settlement without settling a partial zone")
-	await _check_real_drag_beyond_legacy_bounds(gs)
-	await _shot("counter_zone")
+	await _drag(pick_point, gs.table_view.to_global(Vector2(820, 740)))
+	await get_tree().create_timer(0.10).timeout
+	var moved := st.basket.get_item(int(pick_item["uid"]))
+	_expect(float(moved["x"]) > BasketModel.TABLE_BOUNDS.end.x and float(moved["y"]) > 600.0, "real drag places a snack on the lower-right tabletop beyond the legacy left safe area")
+	_expect(_item_corners_inside(moved, BasketModel.DRAG_BOUNDS), "full-counter real drag keeps every rotated corner above the cashier aisle")
+	_expect(st.basket.remaining() == 6 and st.bagged_items == 0 and st.active_batch.is_empty(), "an incomplete kind stays on the table after free placement")
+	_expect(gs._pos_mode_label.text == "聚堆自动称重", "POS remains a static automatic-clustering label")
+	await _double_click(Vector2(690, 1160))
+	_expect(st.batch_serial == 0 and st.bagged_items == 0, "real screen double click does not settle incomplete snacks")
+	await _shot("counter_free_drag")
 	_finish(st)
 
 
-func _check_real_drag_beyond_legacy_bounds(gs: GameScreen) -> void:
-	var uid := -1
-	var start := Vector2(-1, -1)
-	for candidate in gs.state.basket.top_items():
-		uid = int(candidate["uid"])
-		start = _exposed_point(gs, uid)
-		if start.x >= 0:
-			break
-	_expect(uid > 0 and start.x >= 0, "a table snack is available for full-counter drag testing")
-	if uid <= 0 or start.x < 0:
-		return
-	var target := Vector2(820, 680)
-	await _drag(start, gs.table_view.to_global(target))
-	await get_tree().create_timer(0.10).timeout
-	var moved := gs.state.basket.get_item(uid)
-	_expect(float(moved["x"]) > BasketModel.TABLE_BOUNDS.end.x and float(moved["y"]) > 600.0, "real drag places a snack on the lower-right tabletop beyond the legacy left safe area")
-	_expect(_item_corners_inside(moved, BasketModel.DRAG_BOUNDS), "full-counter real drag keeps every rotated corner above the cashier aisle")
-	_expect(gs.state.zones.sections[0].size() == 1 and gs.state.bagged_items == 0, "full-counter free placement neither zones nor settles the snack")
+func _safe_seed(app, level_id: int) -> int:
+	for candidate in range(42, 200):
+		var generated := GameState.new_game(app.db, level_id, {}, candidate)
+		if BasketModel.find_ready_clusters(generated.basket.items).is_empty():
+			return candidate
+	_expect(false, "a deterministic non-ready initial layout exists")
+	return 42
+
+
+func _spread_pairs(gs: GameScreen) -> void:
+	var groups := {}
+	for item in gs.state.basket.items:
+		if not groups.has(item["snack"]):
+			groups[item["snack"]] = []
+		groups[item["snack"]].append(item)
+	var ids := groups.keys()
+	ids.sort()
+	var points := [Vector2(130, 180), Vector2(130, 560), Vector2(520, 400), Vector2(520, 680), Vector2(800, 400), Vector2(800, 680)]
+	var index := 0
+	for snack_id in ids:
+		for item in groups[snack_id]:
+			var uid := int(item["uid"])
+			item["rot"] = 0.0
+			gs.snack_nodes[uid].rotation = 0.0
+			gs.state.move_item(uid, points[index], true)
+			gs.snack_nodes[uid].global_position = gs.table_view.to_global(points[index])
+			index += 1
+	gs._refresh_table_layers()
 
 
 func _check_layout(gs: GameScreen) -> void:
@@ -333,6 +340,19 @@ func _drag(start: Vector2, end: Vector2) -> void:
 	released.pressed = false
 	Input.parse_input_event(released)
 	await get_tree().process_frame
+
+
+func _double_click(pos: Vector2) -> void:
+	for click_index in 2:
+		for pressed in [true, false]:
+			var event := InputEventMouseButton.new()
+			event.position = pos
+			event.global_position = pos
+			event.button_index = MOUSE_BUTTON_LEFT
+			event.pressed = pressed
+			event.double_click = click_index == 1
+			Input.parse_input_event(event)
+		await get_tree().process_frame
 
 
 func _expect(cond: bool, message: String) -> void:

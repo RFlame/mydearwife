@@ -1,7 +1,7 @@
 class_name GameScreen
 extends Control
-## 俯视收银工作台：左侧四角集货 / 右侧自动称重 / 底部全宽收银员过道。
-## 输入只转成 core 命令；区域完整性、称重队列、换顾客与结算均由 core 驱动。
+## 俯视收银工作台：桌面自由聚堆 / 右侧连续称重 / 底部全宽收银员过道。
+## 输入只转成 core 命令；聚堆、批次计时、换顾客与结算均由 core 驱动。
 
 const BASKET_STAGE_PIVOT := Vector2(24, 710)
 const TABLE_HOME := Vector2(0, 400)
@@ -16,19 +16,7 @@ const BASKET_LIFT_PIVOT := Vector2(24, 670)
 const BASKET_POUR_TIME := 1.20
 const BASKET_FIRST_SPILL := 0.12
 const DRAG_THRESHOLD := 9.0
-const ZONE_RECTS := [
-	Rect2(44, -48, 184, 176), Rect2(372, -48, 184, 176),
-	Rect2(44, 140, 184, 176), Rect2(372, 140, 184, 176),
-]
-const ZONE_COLORS := [UIKit.RED, UIKit.BLUE, UIKit.GREEN, Color("B98242")]
-const ZONE_OFFSETS := [
-	Vector2(0, 0), Vector2(-26, -18), Vector2(26, -18),
-	Vector2(-28, 18), Vector2(28, 18), Vector2(0, -30),
-	Vector2(0, 30), Vector2(-38, 0), Vector2(38, 0),
-	Vector2(-16, 0), Vector2(16, 0), Vector2(0, 14),
-]
-const ZONE_FLIGHT_TIME := 0.26
-const BATCH_FLIGHT_TIME := 0.34
+const SCALE_RESIDUE_TIME := 0.16
 
 var app = null
 var level_id: int = 1
@@ -47,23 +35,17 @@ var cashier_view: CashierView
 var _cashier_zone: Panel
 var customer_view: CustomerView
 var snack_nodes := {}
-var zone_views: Array[SortingZoneView] = []
-var _hover_zone := -1
-var _zone_pump_running := false
 var _table_tap_seq := 0
 var _last_table_tap_uid := -1
+var _price_tags: Array = []
+var _price_tag_serial := 0
 
 var _coin_label: Label
 var _customer_label: Label
 var _queue_box: Control
 var _pos_detail: Label
+var _pos_mode_label: Label
 var _settle_hint: Label
-var _checkout_btn: Button
-var _auto_settle := true
-var _manual_settle_requested := false
-var _manual_settle_seq := 0
-var _manual_click_msec := -100000
-var _manual_click_pointer := Vector2.ZERO
 var _combo_badge: PanelContainer
 var _combo_label: Label
 var _combo_tween: Tween = null
@@ -87,8 +69,6 @@ var _last_tap_snack := ""
 var _last_tap_origin := Vector2.ZERO
 var _last_tap_pointer := Vector2.ZERO
 var _last_tap_msec := -100000
-var _last_double_count := 0
-var _gather_emit_index := -1
 var _idle := 0.0
 var _hint_uids: Array = []
 var _tex_cache := {}
@@ -126,23 +106,11 @@ func _input(event: InputEvent) -> void:
 		return
 	if _paused or _switching_customer or state == null or state.state != "playing":
 		return
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT and not _auto_settle:
-		if event.double_click or _is_manual_double_click(event.position):
-			_manual_click_msec = -100000
-			_request_manual_settlement()
-			get_viewport().set_input_as_handled()
-			return
 	if event is InputEventMouseMotion and _drag_uid > 0:
 		_update_table_drag(event.position)
 		get_viewport().set_input_as_handled()
 		return
 	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
-		return
-	# 区内物品优先于下方桌面堆叠命中；单击退回，集齐锁定后由 core 拒绝。
-	var zone_uid := _zone_hit_test(event.position)
-	if zone_uid > 0:
-		_on_snack_clicked(zone_uid)
-		get_viewport().set_input_as_handled()
 		return
 	# 桌面按下只准备拖动；松开未越阈值时仅播放原地轻跳。
 	var table_uid := state.basket.hit_test_assisted(table_view.to_local(event.position))
@@ -154,49 +122,6 @@ func _input(event: InputEvent) -> void:
 		_drag_item_origin = Vector2(float(item["x"]), float(item["y"]))
 		_drag_offset = _drag_item_origin - table_view.to_local(event.position)
 		get_viewport().set_input_as_handled()
-
-
-func _is_manual_double_click(pointer: Vector2) -> bool:
-	var now := Time.get_ticks_msec()
-	var repeated := now - _manual_click_msec <= 500 and pointer.distance_to(_manual_click_pointer) <= 48.0
-	_manual_click_msec = now
-	_manual_click_pointer = pointer
-	return repeated
-
-
-func _zone_hit_test(pointer: Vector2) -> int:
-	var best_uid := -1
-	var best_z := -100000
-	for section in state.zones.sections:
-		for item in section:
-			var uid := int(item["uid"])
-			var node: SnackView = snack_nodes.get(uid)
-			if node and not node.flying and node.z_index > best_z and node.contains_global_point(pointer):
-				best_uid = uid
-				best_z = node.z_index
-	return best_uid
-
-
-static func zone_contains_point(zone_index: int, point: Vector2) -> bool:
-	if zone_index < 0 or zone_index >= ZONE_RECTS.size():
-		return false
-	var rect: Rect2 = ZONE_RECTS[zone_index]
-	var delta := point - rect.get_center()
-	var radius := rect.size * 0.5
-	var normalized := Vector2(delta.x / radius.x, delta.y / radius.y)
-	return normalized.length_squared() <= 1.0
-
-
-func _zone_at_table_point(point: Vector2) -> int:
-	for zone_index in ZoneModel.ZONE_COUNT:
-		if zone_contains_point(zone_index, point):
-			return zone_index
-	return -1
-
-
-func _update_zone_hover() -> void:
-	for zone_index in zone_views.size():
-		zone_views[zone_index].set_drag_hover(zone_index == _hover_zone)
 
 
 func _update_table_drag(pointer: Vector2) -> void:
@@ -217,26 +142,19 @@ func _update_table_drag(pointer: Vector2) -> void:
 		var item := state.basket.get_item(_drag_uid)
 		var center := Vector2(float(item["x"]), float(item["y"]))
 		node.global_position = table_view.to_global(center)
-		_hover_zone = _zone_at_table_point(center)
-		_update_zone_hover()
 
 
 func _finish_table_press() -> void:
 	var uid := _drag_uid
 	_drag_uid = -1
-	_hover_zone = -1
-	_update_zone_hover()
 	if _dragging:
 		_dragging = false
 		if snack_nodes.has(uid):
 			var item := state.basket.get_item(uid)
 			var node: SnackView = snack_nodes[uid]
 			node.end_drag(int(item["layer"]) * 2 + 2)
-			var zone_index := _zone_at_table_point(Vector2(float(item["x"]), float(item["y"])))
-			if zone_index >= 0:
-				state.place_in_zone(uid, zone_index, _drag_item_origin)
-			else:
-				SFX.play("pick", 0.72)
+			SFX.play("pick", 0.72)
+			state.finish_move(uid, Vector2(float(item["x"]), float(item["y"])))
 		_refresh_table_layers()
 		return
 	_on_snack_clicked(uid)
@@ -400,13 +318,14 @@ func _build_counter() -> void:
 	_pos_detail.size = Vector2(170, 44)
 	_pos_detail.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	pos_view.add_child(_pos_detail)
-	_checkout_btn = UIKit.make_button("自动结算：开", UIKit.RED, UIKit.CREAM, 18)
-	_checkout_btn.position = Vector2(12, 82)
-	_checkout_btn.size = Vector2(170, 40)
-	_checkout_btn.pressed.connect(_toggle_settle_mode)
-	pos_view.add_child(_checkout_btn)
+	_pos_mode_label = UIKit.make_label("聚堆自动称重", 18, UIKit.CREAM)
+	_pos_mode_label.position = Vector2(12, 82)
+	_pos_mode_label.size = Vector2(170, 40)
+	_pos_mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_pos_mode_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	pos_view.add_child(_pos_mode_label)
 
-	_settle_hint = UIKit.make_label("四角集齐同款\n自动称重 · 无需双击", 18, UIKit.BROWN)
+	_settle_hint = UIKit.make_label("同款聚堆 · 异款留隙\n松手自动称重", 18, UIKit.BROWN)
 	_settle_hint.position = Vector2(446, 650)
 	_settle_hint.size = Vector2(264, 48)
 	add_child(_settle_hint)
@@ -440,21 +359,6 @@ func _build_basket_area() -> void:
 	table_view.position = TABLE_HOME
 	table_view.scale = Vector2.ONE * BASKET_SCALE
 	add_child(table_view)
-	_build_sorting_zones()
-
-
-func _build_sorting_zones() -> void:
-	for zone_index in ZoneModel.ZONE_COUNT:
-		var zone := SortingZoneView.new()
-		zone.name = "SortingZone%d" % (zone_index + 1)
-		zone.zone_index = zone_index
-		zone.accent = ZONE_COLORS[zone_index]
-		zone.position = ZONE_RECTS[zone_index].position
-		zone.size = ZONE_RECTS[zone_index].size
-		zone.z_index = -4
-		table_view.add_child(zone)
-		zone_views.append(zone)
-	_refresh_zones()
 
 
 # ---------------- core 信号 ----------------
@@ -462,9 +366,8 @@ func _build_sorting_zones() -> void:
 func _connect_core() -> void:
 	state.snack_picked.connect(_on_snack_picked)
 	state.snack_returned.connect(_on_snack_returned)
-	state.snack_zoned.connect(_on_snack_zoned)
-	state.zone_changed.connect(_refresh_zones)
-	state.zone_queued.connect(_on_zone_queued)
+	state.snacks_gathered.connect(_on_snacks_gathered)
+	state.batch_started.connect(_on_batch_started)
 	state.tray_changed.connect(_on_tray_changed)
 	state.group_weighed.connect(_on_group_weighed)
 	state.blind_revealed.connect(_on_blind_revealed)
@@ -523,9 +426,6 @@ func _on_snack_clicked(uid: int) -> void:
 		return
 	_idle = 0.0
 	_clear_hint()
-	if state.zone_for_uid(uid) >= 0:
-		state.return_zone_item(uid)
-		return
 	var item := state.basket.get_item(uid)
 	if item.is_empty() or item.get("picked", false):
 		return
@@ -546,31 +446,40 @@ func _on_snack_picked(item: Dictionary) -> void:
 	node.z_index = 300 + (state.tray.entries.size() - 1) * 2
 	var positions := tray_view.entry_positions(state.tray.entries)
 	var target: Vector2 = positions.get(item["uid"], tray_view.to_global(TrayView.PILE_CENTER))
-	var delay := 0.0
-	if _gather_emit_index >= 0:
-		delay = _gather_emit_index * 0.045
-		_gather_emit_index += 1
-	node.fly_to(target, 0.26, true, TrayView.entry_rotation(item), delay)
+	node.fly_to(target, 0.26, true, TrayView.entry_rotation(item))
 
 
-func _on_snack_zoned(item: Dictionary, zone_index: int) -> void:
+func _on_snacks_gathered(_snack_id: String, items: Array, _combo: int) -> void:
 	cashier_view.sort()
-	SFX.play("pick", 1.0 + float(zone_index) * 0.04)
-	var node: SnackView = snack_nodes.get(int(item["uid"]))
-	if node == null:
-		return
-	node.z_index = 100 + zone_index * 120 + int(item["uid"])
-	node.fly_to(
-		_zone_item_position(zone_index, int(item["uid"])),
-		ZONE_FLIGHT_TIME,
-		true,
-		deg_to_rad(float(item.get("rot", 0.0)))
-	)
+	SFX.play("ding", 1.08)
+	for item in items:
+		var node: SnackView = snack_nodes.get(int(item["uid"]))
+		if node:
+			node.interactive = false
+	if app != null and app._web_smoke_enabled:
+		app._publish_web_smoke()
 
 
-func _zone_item_position(zone_index: int, uid: int) -> Vector2:
-	var offset: Vector2 = ZONE_OFFSETS[posmod(uid - 1, ZONE_OFFSETS.size())]
-	return table_view.to_global(ZONE_RECTS[zone_index].get_center() + offset)
+func _on_batch_started(_snack_id: String, group: Array, duration: float, flight_time: float, stagger: float, _combo: int) -> void:
+	var positions := tray_view.entry_positions(group)
+	var theoretical := 0
+	for index in group.size():
+		var item: Dictionary = group[index]
+		theoretical += app.db.snack_weight(String(item["snack"])) * int(item.get("size", 1))
+		var node: SnackView = snack_nodes.get(int(item["uid"]))
+		if node:
+			node.z_index = 600 + index
+			node.fly_to(
+				positions.get(int(item["uid"]), tray_view.to_global(TrayView.PILE_CENTER)),
+				flight_time,
+				false,
+				TrayView.entry_rotation(item),
+				float(index) * stagger
+			)
+	scale_view.show_weight(theoretical, duration, false)
+	SFX.play("magnet", 1.18)
+	if app != null and app._web_smoke_enabled:
+		app._publish_web_smoke()
 
 
 func _on_snack_returned(item: Dictionary) -> void:
@@ -584,114 +493,9 @@ func _on_snack_returned(item: Dictionary) -> void:
 
 
 func _on_tray_changed() -> void:
-	# 自动批次由统一队列控制飞行，不能在信号刷新时提前瞬移到秤上。
-	if state.zones.active_zone < 0:
+	# 自动批次由 batch_started 统一控制飞行，不能提前瞬移到秤上。
+	if state.batch_phase == "idle":
 		_relayout_tray()
-	_refresh_pos()
-
-
-func _refresh_zones() -> void:
-	if state == null or state.zones == null:
-		return
-	for zone_index in mini(zone_views.size(), ZoneModel.ZONE_COUNT):
-		var section: Array = state.zones.sections[zone_index]
-		var active: bool = state.zones.active_zone == zone_index
-		var queued: bool = state.zones.queue.has(zone_index)
-		var text := "拖入同款"
-		if active:
-			text = "称重中…"
-		elif queued:
-			text = "已集齐 · 等待称重" if _auto_settle or _manual_settle_requested else "已集齐 · 双击结算"
-		elif not section.is_empty():
-			var kinds := {}
-			for item in section:
-				kinds[item["snack"]] = true
-			if kinds.size() > 1:
-				text = "混放 %d 件 · 点击退回" % section.size()
-			else:
-				var snack_id := String(section[0]["snack"])
-				var snack_name := String(app.db.snacks.get(snack_id, {}).get("name", snack_id))
-				text = "%s  %d/%d" % [snack_name, section.size(), state.zone_snack_total(snack_id)]
-		zone_views[zone_index].set_status(text, queued, active)
-
-
-func _on_zone_queued(zone_index: int, _snack_id: String) -> void:
-	if zone_index >= 0 and zone_index < zone_views.size():
-		zone_views[zone_index].pulse_ready()
-		for item in state.zones.sections[zone_index]:
-			var node: SnackView = snack_nodes.get(int(item["uid"]))
-			if node:
-				node.interactive = false
-	SFX.play("ding", 1.0 + float(zone_index) * 0.05)
-	if _auto_settle:
-		_pump_zone_queue()
-	_refresh_pos()
-
-
-func _toggle_settle_mode() -> void:
-	_auto_settle = not _auto_settle
-	if _auto_settle:
-		_manual_settle_requested = false
-		state.request_zone_settlement()
-		_pump_zone_queue()
-	_refresh_zones()
-	_refresh_pos()
-
-
-func _request_manual_settlement() -> void:
-	if _auto_settle or _paused or _switching_customer or state.state != "playing":
-		return
-	if not state.request_zone_settlement():
-		SFX.play("pick", 0.6)
-		UIKit.toast(self, "还没有集齐同款的区域")
-		return
-	_manual_settle_requested = true
-	_manual_settle_seq += 1
-	_refresh_zones()
-	_pump_zone_queue()
-	_refresh_pos()
-
-
-## 单一消费者串行处理 core 队列；飞行、称重和 LED 滚动不互相抢批次。
-func _pump_zone_queue() -> void:
-	if _zone_pump_running:
-		return
-	_zone_pump_running = true
-	var zone_set := state.zones
-	while state.zones == zone_set and not zone_set.queue.is_empty() and not _switching_customer and state.state == "playing" and (_auto_settle or _manual_settle_requested):
-		# 最后一次拖入也有完整抛物线，落进区域后才锁定并起飞。
-		await get_tree().create_timer(ZONE_FLIGHT_TIME + 0.05).timeout
-		if state.zones != zone_set or _switching_customer or state.state != "playing" or not (_auto_settle or _manual_settle_requested):
-			break
-		var group := state.begin_next_zone_batch()
-		if group.is_empty():
-			break
-		var stagger := minf(0.035, 0.20 / maxf(1.0, float(group.size() - 1)))
-		var positions := tray_view.entry_positions(group)
-		for index in group.size():
-			var item: Dictionary = group[index]
-			var node: SnackView = snack_nodes.get(int(item["uid"]))
-			if node:
-				node.z_index = 600 + index
-				node.fly_to(
-					positions.get(int(item["uid"]), tray_view.to_global(TrayView.PILE_CENTER)),
-					BATCH_FLIGHT_TIME,
-					false,
-					TrayView.entry_rotation(item),
-					float(index) * stagger
-				)
-		cashier_view.sort()
-		SFX.play("magnet", 1.18)
-		await get_tree().create_timer(BATCH_FLIGHT_TIME + float(group.size() - 1) * stagger + 0.05).timeout
-		if state.zones != zone_set or zone_set.active_zone < 0:
-			break
-		state.settle_scale()
-		state.finish_zone_batch()
-		# 前一批 LED 定格与价签弹出后，才允许下一批占秤。
-		await get_tree().create_timer(maxf(0.68, float(state.cfg["weigh_anim_time"]) + 0.28)).timeout
-	_zone_pump_running = false
-	_manual_settle_requested = false
-	_refresh_zones()
 	_refresh_pos()
 
 
@@ -709,29 +513,40 @@ func _relayout_tray() -> void:
 
 func _on_group_weighed(_snack_id: String, group: Array, price: Dictionary, weight: int) -> void:
 	cashier_view.celebrate()
-	var scale_center := tray_view.to_global(TrayView.PILE_CENTER)
-	for item in group:
-		var node: SnackView = snack_nodes.get(item["uid"])
+	var bag_target := _bag_icon.get_global_rect().get_center()
+	for index in group.size():
+		var item: Dictionary = group[index]
+		var uid := int(item["uid"])
+		var node: SnackView = snack_nodes.get(uid)
 		if node:
-			snack_nodes.erase(item["uid"])
-			node.z_index = 700
-			node.fly_to(scale_center + Vector2(randf_range(-24, 24), 0), 0.22, false)
-			var t := create_tween()
-			t.tween_interval(0.26)
-			t.tween_callback(node.queue_free)
+			snack_nodes.erase(uid)
+			node.z_index = 700 + index
+			# 先在秤上短驻留，再独立装袋；后续批次使用其他节点，不等待这段演出。
+			node.fly_to(bag_target + Vector2((index % 3 - 1) * 12, 0), 0.18, false, 0.0, SCALE_RESIDUE_TIME)
+			var tween := create_tween()
+			tween.tween_interval(SCALE_RESIDUE_TIME)
+			tween.tween_property(node, "scale", Vector2.ONE * 0.25, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			tween.parallel().tween_property(node, "modulate:a", 0.0, 0.18)
+			tween.tween_callback(node.queue_free)
 	scale_view.show_weight(weight, float(state.cfg["weigh_anim_time"]))
 	_show_price_tag(weight, int(price["total"]))
 	_refresh_bag()
 	customer_view.celebrate()
+	if app != null and app._web_smoke_enabled:
+		app._publish_web_smoke()
 
 
 func _show_price_tag(weight: int, price: int) -> void:
+	_price_tag_serial += 1
 	var panel := UIKit.make_panel(UIKit.CREAM, 6)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(UIKit.make_label("%dg  ¥%d" % [weight, price], 24))
 	add_child(panel)
-	panel.global_position = scale_view.to_global(Vector2(20, 242))
+	var offset := Vector2(0, -18 * mini(_price_tags.size(), 3))
+	panel.global_position = scale_view.to_global(Vector2(20, 242)) + offset
 	panel.size = panel.get_combined_minimum_size()
-	panel.z_index = 800
+	panel.z_index = 800 + _price_tag_serial
+	_price_tags.append(panel)
 	SFX.play("print")
 	var bag_target := _bag_icon.get_global_rect().get_center() - panel.size * 0.5
 	var tween := create_tween()
@@ -739,7 +554,9 @@ func _show_price_tag(weight: int, price: int) -> void:
 	tween.tween_callback(func(): SFX.play("bag"))
 	tween.tween_property(panel, "global_position", bag_target, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tween.parallel().tween_property(panel, "modulate:a", 0.0, 0.35)
-	tween.tween_callback(panel.queue_free)
+	tween.tween_callback(func():
+		_price_tags.erase(panel)
+		panel.queue_free())
 
 
 func _on_blind_revealed(item: Dictionary) -> void:
@@ -790,12 +607,8 @@ func _on_customer_started(_idx: int, customer_id: String) -> void:
 	app.save.meet_customer(customer_id)
 	_refresh_queue()
 	_clear_hint()
-	_hover_zone = -1
-	_update_zone_hover()
-	_refresh_zones()
 	if state.customer_index > 1:
 		_start_basket_pour()
-	scale_view.reset()
 	_customer_label.text = "顾客 %d/%d" % [state.customer_index, state.customers_total]
 	_refresh_bag()
 	_refresh_pos()
@@ -845,7 +658,6 @@ func _lift_basket() -> void:
 func _begin_pour() -> void:
 	_set_basket_phase("pour")
 	_pouring = true
-	_last_double_count = 0
 	SFX.play("bag", 0.78)
 	var pouring := basket_view
 	var uids := snack_nodes.keys()
@@ -910,6 +722,7 @@ func _finish_pour() -> void:
 	_switching_customer = false
 	_set_basket_phase("done")
 	_refresh_pos()
+	state.scan_clusters()
 
 
 func _cancel_interaction() -> void:
@@ -917,16 +730,14 @@ func _cancel_interaction() -> void:
 		var item := state.basket.get_item(_drag_uid)
 		if not item.is_empty():
 			snack_nodes[_drag_uid].end_drag(int(item["layer"]) * 2 + 2)
+			if _dragging and not item.get("picked", false):
+				state.finish_move(_drag_uid, Vector2(float(item["x"]), float(item["y"])))
 	_drag_uid = -1
 	_dragging = false
-	_hover_zone = -1
-	_update_zone_hover()
 	_suppress_release = false
 	_last_tap_uid = -1
 	_last_tap_snack = ""
 	_last_tap_msec = -100000
-	_manual_click_msec = -100000
-	_manual_click_pointer = Vector2.ZERO
 
 
 func _refresh_table_layers() -> void:
@@ -959,25 +770,16 @@ func _refresh_bag() -> void:
 
 
 func _refresh_pos() -> void:
-	var kinds := state.tray.unique_snacks()
-	_checkout_btn.disabled = false
-	_checkout_btn.text = "自动结算：开" if _auto_settle else "自动结算：关"
-	_settle_hint.text = "四角集齐同款\n自动称重 · 无需双击" if _auto_settle else "同款集齐到一区后\n双击屏幕任意位置称重"
-	var weight := state.tray_weight()
-	scale_view.set_live_weight(weight)
-	if kinds.is_empty():
-		if _auto_settle:
-			_pos_detail.text = "四角集货区\n集齐同款自动结算"
-		elif state.zones.active_zone >= 0:
-			_pos_detail.text = "双击批次称重中\n请稍候"
-		else:
-			_pos_detail.text = "已集齐 %d 个区域\n双击屏幕依次结算" % state.zones.queue.size() if not state.zones.queue.is_empty() else "等待同款集齐\n双击检测可结算区域"
-	elif kinds.size() > 1:
-		_pos_detail.text = "批次零食异常\n请整理区域同款"
-	else:
-		var snack_id := String(kinds[0])
+	if not state.active_batch.is_empty():
+		var snack_id := String(state.active_batch[0]["snack"])
 		var snack_name := String(app.db.snacks.get(snack_id, {}).get("name", snack_id))
-		_pos_detail.text = "%s × %d 件\n约 %d g · 称重中" % [snack_name, state.tray.entries.size(), weight]
+		_pos_detail.text = "%s × %d 件\n连续称重 · 等待 %d 批" % [snack_name, state.active_batch.size(), state.batch_queue.size()]
+	elif not state.tray.is_empty():
+		_pos_detail.text = "称重台 %d 件\n自动整理结算" % state.tray.entries.size()
+	else:
+		_pos_detail.text = "同款聚成一堆\n周边异款留空隙"
+	if state.batch_phase == "idle":
+		scale_view.set_live_weight(state.tray_weight())
 
 
 func _refresh_queue() -> void:

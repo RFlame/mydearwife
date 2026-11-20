@@ -1,13 +1,15 @@
 class_name GameState
 extends RefCounted
-## 核心状态机：桌面整理 / 四角集货 / 同款自动称重 / 连击 / 顾客队列。
+## 核心状态机：桌面自由聚堆 / 连续自动称重 / 连击 / 顾客队列。
 ## 不依赖任何 Node：时间由表现层 update(delta) 驱动，演出全部走信号。
+
+const BATCH_FLIGHT_TIME := 0.18
+const BATCH_STAGGER_MAX := 0.08
 
 signal snack_picked(item: Dictionary)
 signal snack_returned(item: Dictionary)
-signal snack_zoned(item: Dictionary, zone_index: int)
-signal zone_changed
-signal zone_queued(zone_index: int, snack_id: String)
+signal snacks_gathered(snack_id: String, items: Array, combo: int)
+signal batch_started(snack_id: String, items: Array, duration: float, flight_time: float, stagger: float, combo: int)
 signal pick_rejected(uid: int, reason: String)
 signal checkout_rejected(reason: String)
 signal blind_revealed(item: Dictionary)
@@ -28,7 +30,6 @@ var rng: GameRNG
 var layout_rng: GameRNG
 var customer_rng: GameRNG
 var basket: BasketModel
-var zones: ZoneModel
 var tray: TrayModel
 var combo: ComboSystem
 var clock: PatienceClock
@@ -47,6 +48,14 @@ var return_count: int = 0
 var _extra_slot_used: bool = false
 var _freeze_used: bool = false
 var _customer_ids: Array = []
+var batch_queue: Array = []
+var active_batch: Array = []
+var active_combo: int = 0
+var batch_phase: String = "idle"
+var batch_timer: float = 0.0
+var batch_duration: float = 0.0
+var batch_serial: int = 0
+var weighed_serial: int = 0
 
 
 static func new_game(p_db: ConfigDB, level_id: int, upgrades: Dictionary, seed_value: int = 0) -> GameState:
@@ -130,7 +139,13 @@ func upcoming_customers() -> Array:
 func _next_customer() -> void:
 	customer_index += 1
 	basket = LevelGenerator.generate(cfg, db.snacks, layout_rng)
-	zones = ZoneModel.new()
+	batch_queue.clear()
+	active_batch.clear()
+	active_combo = 0
+	batch_phase = "idle"
+	batch_timer = 0.0
+	batch_duration = 0.0
+	tray.clear()
 	if customer_index == 1:
 		total_items = basket.remaining() * customers_total
 	var profile := current_customer()
@@ -157,7 +172,8 @@ func update(delta: float) -> void:
 	clock.update(delta)
 	if clock.depleted():
 		_fail("patience")
-
+		return
+	_update_batch(delta)
 
 func pick(uid: int) -> bool:
 	if state != "playing":
@@ -190,107 +206,96 @@ func move_item(uid: int, point: Vector2, bring_to_front: bool = false) -> bool:
 	return basket.move_item(uid, point, bring_to_front)
 
 
-## 拖入四角集货区。区域不限台位；只有完整同款批次才会进入自动称重队列。
-func place_in_zone(uid: int, zone_index: int, return_point: Vector2 = Vector2(-1, -1)) -> bool:
-	if state != "playing" or zone_index < 0 or zone_index >= ZoneModel.ZONE_COUNT:
-		return false
-	if zones.is_locked(zone_index):
-		pick_rejected.emit(uid, "locked")
-		return false
-	if not basket.can_pick(uid):
-		pick_rejected.emit(uid, "covered")
-		return false
-	var item := basket.get_item(uid)
-	var home := return_point if return_point.x >= 0.0 else Vector2(float(item["x"]), float(item["y"]))
-	item["zone_return_x"] = home.x
-	item["zone_return_y"] = home.y
-	basket.pick(uid)
-	if item.get("blind", false) and not item.get("revealed", true):
-		item["revealed"] = true
-		blind_revealed.emit(item)
-	zones.add_item(zone_index, item)
-	combo.register_pick()
-	combo_changed.emit(combo.combo, combo.best)
-	snack_zoned.emit(item, zone_index)
-	_refresh_zone_queue()
-	return true
+## 松手是完整桌面命令：先更新位置，再统一检测所有合格连通堆。
+func finish_move(uid: int, point: Vector2, bring_to_front: bool = false) -> bool:
+	var moved := move_item(uid, point, bring_to_front)
+	if moved:
+		scan_clusters()
+	return moved
 
 
-## 单击未排队区域内的零食，退回其桌面整理位置；已集齐批次不可撤回。
-func return_zone_item(uid: int) -> bool:
+func scan_clusters() -> int:
 	if state != "playing":
-		return false
-	var zone_index := zones.zone_for_uid(uid)
-	if zone_index < 0:
-		return false
-	if zones.is_locked(zone_index):
-		pick_rejected.emit(uid, "locked")
-		return false
-	var item := zones.remove_uid(uid)
-	item["x"] = float(item.get("zone_return_x", item["x"]))
-	item["y"] = float(item.get("zone_return_y", item["y"]))
-	item.erase("zone_return_x")
-	item.erase("zone_return_y")
-	basket.restore(uid)
-	return_count += 1
-	combo.reset()
-	combo_changed.emit(combo.combo, combo.best)
-	snack_returned.emit(item)
-	# 混放区退走异类后，可能恰好成为完整同款区。
-	_refresh_zone_queue()
-	return true
+		return 0
+	var ready := BasketModel.find_ready_clusters(basket.items)
+	for group in ready:
+		var snack_id := String(group["snack"])
+		var group_items: Array = group["items"]
+		for item in group_items:
+			basket.pick(int(item["uid"]))
+			if item.get("blind", false) and not item.get("revealed", true):
+				item["revealed"] = true
+				blind_revealed.emit(item)
+			combo.register_pick()
+		combo_changed.emit(combo.combo, combo.best)
+		batch_queue.append({"snack": snack_id, "items": group_items, "combo": combo.combo})
+		snacks_gathered.emit(snack_id, group_items, combo.combo)
+	if batch_phase == "idle":
+		begin_next_batch()
+	return ready.size()
 
 
-func zone_for_uid(uid: int) -> int:
-	return zones.zone_for_uid(uid)
-
-
-func zone_snack_total(snack_id: String) -> int:
-	var count := 0
-	for item in basket.items:
-		if String(item["snack"]) == snack_id:
-			count += 1
-	return count
-
-
-func _refresh_zone_queue() -> void:
-	var added := zones.refresh_queue(basket)
-	zone_changed.emit()
-	for zone_index in added:
-		zone_queued.emit(zone_index, zones.complete_snack(zone_index, basket))
-
-
-## 手动双击时重新检测四区；所有满足完整同款条件的区域按索引进入同一 FIFO。
-## 返回是否已有等待中或称重中的批次，表现层据此启动唯一的串行消费者。
-func request_zone_settlement() -> bool:
-	if state != "playing":
-		return false
-	_refresh_zone_queue()
-	return zones.active_zone >= 0 or not zones.queue.is_empty()
-
-
-## 表现层逐批调用：队列 pop 与物品移入称重台是同一个核心事务。
-## 完整同款可以超过旧手动台位上限，避免大量同款永远无法结算。
-func begin_next_zone_batch() -> Array:
-	if state != "playing":
+func begin_next_batch() -> Array:
+	if state != "playing" or batch_phase != "idle" or batch_queue.is_empty():
 		return []
-	var batch := zones.take_next_batch()
-	if batch.is_empty():
-		return []
-	var group: Array = batch["items"]
-	for item in group:
+	var batch: Dictionary = batch_queue.pop_front()
+	active_batch = batch["items"]
+	active_combo = int(batch["combo"])
+	batch_phase = "flying"
+	var stagger := minf(0.025, BATCH_STAGGER_MAX / maxf(1.0, float(active_batch.size() - 1)))
+	batch_duration = BATCH_FLIGHT_TIME + stagger * float(active_batch.size() - 1)
+	batch_timer = batch_duration
+	tray.clear()
+	for item in active_batch:
 		tray.add(item)
-	zone_changed.emit()
+	batch_serial += 1
+	batch_started.emit(String(batch["snack"]), active_batch, batch_duration, BATCH_FLIGHT_TIME, stagger, active_combo)
 	tray_changed.emit()
-	return group
+	return active_batch
 
 
-func finish_zone_batch() -> void:
-	if zones.active_zone < 0:
-		return
-	zones.finish_batch()
-	zone_changed.emit()
+func _settle_active_batch() -> bool:
+	if batch_phase != "flying" or active_batch.is_empty():
+		return false
+	var customer_before := customer_index
+	var group := active_batch.duplicate()
+	var snack_id := String(group[0]["snack"])
+	var price := ScoreSystem.batch_price(level_id(), group.size(), active_combo)
+	var weight := int(tray_weight() * rng.randf_range(0.95, 1.05))
+	tray.clear()
+	bagged_groups += 1
+	bagged_items += group.size()
+	coins_earned += float(price["total"])
+	active_batch.clear()
+	active_combo = 0
+	batch_phase = "idle"
+	batch_timer = 0.0
+	batch_duration = 0.0
+	weighed_serial += 1
+	group_weighed.emit(snack_id, group, price, weight)
+	tray_changed.emit()
 	_check_end()
+	if state == "playing" and customer_index == customer_before:
+		begin_next_batch()
+	return true
+
+
+func _update_batch(delta: float) -> void:
+	var remaining := delta
+	var customer_before := customer_index
+	if batch_phase == "idle":
+		begin_next_batch()
+	while batch_phase == "flying" and remaining > 0.0 and state == "playing" and customer_index == customer_before:
+		if batch_timer > remaining:
+			batch_timer -= remaining
+			return
+		remaining -= batch_timer
+		batch_timer = 0.0
+		_settle_active_batch()
+
+
+func batches_clear() -> bool:
+	return active_batch.is_empty() and batch_queue.is_empty()
 
 
 ## 双击聚拢：以桌面位置为中心，只收半径内、实际露出的同款，受台位限制且不自动结算。
@@ -360,7 +365,7 @@ func tray_weight() -> int:
 
 
 func _check_end() -> void:
-	if state != "playing" or basket.remaining() != 0 or not tray.is_empty() or not zones.is_clear():
+	if state != "playing" or basket.remaining() != 0 or not tray.is_empty() or not batches_clear():
 		return
 	if customer_index < customers_total:
 		customer_served.emit(customer_index)
